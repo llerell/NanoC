@@ -4,7 +4,9 @@ grammaire = lark.Lark(
     r"""
 IDENTIFIER: /[a-zA-Z_][a-zA-Z_0-9]*/
 OPBIN: /[+\-*\/<>]/
-vars : (IDENTIFIER ",")* IDENTIFIER -> liste_vars
+TYPE : "int" | "float" | "str"
+decl : TYPE IDENTIFIER
+vars : (decl ",")* decl -> liste_vars
 expression : IDENTIFIER -> variable
            | SIGNED_NUMBER -> entier
            | expression OPBIN expression -> binaire
@@ -116,11 +118,11 @@ def asm_commande(ast):
         cmd = asm_commande(ast.children[1])
         cpt = next(compteur)
         return f"""{test}
-        cmp rax, 0
-        jz fin_{cpt}
-        {cmd}
-        fin_{cpt}:
-        """
+                    cmp rax, 0
+                    jz fin_{cpt}
+                    {cmd}
+                    fin_{cpt}:
+                    """
 
 
 def pp_liste_vars(ast):
@@ -128,16 +130,19 @@ def pp_liste_vars(ast):
 
 
 def asm_liste_vars(ast):
+    # TODO modifier selon le type
     res = []
     for i in range(len(ast.children)):
         res.append(f"""mov rdi, [argv]
                         add rdi, {(i+1)*8}
                         call atoi
-                        mov [{ast.children[i].value}], rax""")
+                        mov [{ast.children[i].children[1].value}], rax""")
     return "\n".join(res) + "\n"
 
 def asm_decls_vars(ast):
-    return "\n".join(f"{ast.children[i].value}: dq 0" for i in range(len(ast.children))) + "\n"
+    # TODO pour l'instant, on part du principe qu'on a des int
+    # ast.children[i].children[0] contient le type
+    return "\n".join(f"{ast.children[i].children[1].value}: dq 0" for i in range(len(ast.children))) + "\n"
 
 def pp_main(ast):
     vs = pp_liste_vars(ast.children[0])
