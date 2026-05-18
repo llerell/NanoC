@@ -50,7 +50,7 @@ def asm_expression(ast):
     opbin = {"+": "add", "-": "sub", "*": "imul"}
 
     if op in opbin:
-        return base_asm + f"{opbin[op]} rax, rbx"
+        return base_asm + f"{opbin[op]} rax, rbx\n"
 
     if op == "<":
         return base_asm + "cmp rax, rbx\nsetl al\nmovzx rax, al\n"

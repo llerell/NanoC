@@ -5,5 +5,5 @@ main(x,y,z){
         z = z + 1 * 2;
         x = x - 1;
     }
-    return(y);
+    return y;
 }

@@ -7,13 +7,10 @@ global main
 section .text
 main:
 push rbp
-mov rbp, rsp 
+mov rbp, rsp
 mov [argv], rsi
 INIT_VARS
 COMMAND 
 RETURN
-mov rdi, rax
-xor rax, rax
-call printf
 pop rbp
 ret
