@@ -100,8 +100,9 @@ fin_{cpt}
 
 def asm_vars(ast):
     return "\n".join(
-f"""mov rdi, [argv]
-add rdi, {(i+1)*8}
+f"""mov rbx, [argv]
+add rbx, {(i+1)*8}
+mov rdi, [rbx]
 call atoi
 mov [{ast.children[i].value}], rax
 """ for i in range(len(ast.children)))
