@@ -1,0 +1,6 @@
+.venv/
+a.out
+debut.*
+resultat.*
+resultat
+.gitignore
