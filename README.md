@@ -1,3 +1,6 @@
+install dependencies:
+pip install -r requirements.txt
+
 To run the compiler :
 
 run chmod +x script.sh once to make the bash script executable
