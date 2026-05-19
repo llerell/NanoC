@@ -1,4 +1,4 @@
-main(x,y,z){
+main(int x, int y, int z){
     z = 0;
     x = 1;
     while(x){
