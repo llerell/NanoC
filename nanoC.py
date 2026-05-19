@@ -53,6 +53,15 @@ def asm_expression(ast):
     if ast.data == "entier":
         return f"mov rax, {ast.children[0].value}\n"
 
+    if ast.data == "dict_access":
+        dict_name = ast.children[0].value
+        key_asm = asm_expression(ast.children[1])
+        return f"""{key_asm}
+                    mov rsi, rax
+                    mov rdi, [{dict_name}]
+                    call get_from_dict
+                    """
+    
     eg = f"{asm_expression(ast.children[0])}"
     op = ast.children[1].value
     ed = f"{asm_expression(ast.children[2])}"
@@ -70,6 +79,7 @@ def asm_expression(ast):
         return base_asm + "cmp rax, rbx\nsetl al\nmovzx rax, al\n"
     if op == ">":
         return base_asm + "cmp rax, rbx\nsetg al\nmovzx rax, al\n"
+
 
     raise NotImplementedError(f"Opérateur inconnu : {op}")
 
@@ -100,7 +110,7 @@ def pp_commande(ast):
     if ast.data == "assignation_dict_literal":
         dict_name = ast.children[0].value
         pairs = []
-        for i in range(1, len(ast.children) - 1, 2):
+        for i in range(1, len(ast.children), 2):
             key = pp_expression(ast.children[i])
             value = pp_expression(ast.children[i + 1])
             pairs.append(f"{key}: {value}")
@@ -137,6 +147,21 @@ def asm_commande(ast):
         cg = asm_commande(ast.children[0])
         cd = asm_commande(ast.children[1])
         return f"{cg}{cd}"
+    
+    if ast.data == "assignation_dict":
+        dict_name = ast.children[0].value
+        key = asm_expression(ast.children[1])
+        value = asm_expression(ast.children[2])
+        return f"""{value}
+                    push rax
+                    {key}
+                    pop rbx
+                    mov rdx, rbx
+                    mov rsi, rax
+                    mov rdi, [{dict_name}]
+                    call set_in_dict
+                    """
+
 
     if ast.data == "while":
         test = asm_expression(ast.children[0])
@@ -172,11 +197,15 @@ def asm_liste_vars(ast):
     res = []
     for i in range(len(ast.children)):
         if ast.children[i].children[0].value == "dict":
-            continue 
-        res.append(f"""mov rdi, [argv]
-                        add rdi, {(i+1)*8}
-                        call atoi
-                        mov [{ast.children[i].children[1].value}], rax""")
+            res.append(f"""mov rdi, [argv]
+                            add rdi, {(i+1)*8}
+                            call init_dict
+                            mov [{ast.children[i].children[1].value}], rax""") 
+        else:
+            res.append(f"""mov rdi, [argv]
+                            add rdi, {(i+1)*8}
+                            call atoi
+                            mov [{ast.children[i].children[1].value}], rax""")
     return "\n".join(res) + "\n"
 
 def asm_decls_vars(ast):
@@ -184,8 +213,8 @@ def asm_decls_vars(ast):
     # ast.children[i].children[0] contient le type
     result = []
     for i in range(len(ast.children)):
+
         if ast.children[i].children[0].value == "dict":
-            continue
             result.append(f"{ast.children[i].children[1].value} db 0 ; dict {ast.children[i].children[2].value} -> {ast.children[i].children[3].value}")
         else:
             result.append(f"{ast.children[i].children[1].value} dq 0 ; {ast.children[i].children[0].value}")
@@ -195,7 +224,10 @@ def pp_decl_vars(ast):
     result = []
     for i in range(len(ast.children)):
         if ast.children[i].children[0].value == "dict":
-            result.append(f"dict {ast.children[i].children[1].value}<{ast.children[i].children[2].value},{ast.children[i].children[3].value}>;")
+            if len(ast.children[i].children) == 4:
+                result.append(f"dict {ast.children[i].children[1].value}<{ast.children[i].children[2].value},{ast.children[i].children[3].value}>;")
+            else:
+                result.append(f"dict {ast.children[i].children[1].value};")
         else:
             result.append(f"{ast.children[i].children[0].value} {ast.children[i].children[1].value};")
     return "\n".join(result) + "\n"
