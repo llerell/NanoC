@@ -1,18 +1,10 @@
-main(int x){
-    /*
-    début de la fonction
-    */
-    double z = 1e-3;
-    int x = 1;
-    double y = 4e-5;
-    str a = "bonsoir";
-    while(x){
-        z = z * 2;
-        x = x - 1;
+main(dict dico<int, int>, int x){
+    x = 0;
+    dico = {0: 1, 1: 2, 2: 3};
+    dico[0] = 4;
+    del dico[1];
+    foreach (k in dico) {
+        x = x + dico[k];
     }
-    z = z / 3;
-    x = ! x & (1 | 0);
-    print(a);
-    // bonsoir
-    return y;
+    return dico;
 }
