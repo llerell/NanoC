@@ -87,6 +87,14 @@ def asm_expression(ast, env: dict[str, str]) -> tuple[str, str]:
     match ast.data:
         case "entier":
             return "int", f"mov rax, {ast.children[0].value}\n"
+        case "dict_access":
+            dict_name = ast.children[0].value
+            key_asm = asm_expression(ast.children[1], env)
+            return "dict", f"""{key_asm}
+                        mov rsi, rax
+                        mov rdi, [{dict_name}]
+                        call get_from_dict
+                        """
 
         case "double":
             type_lit = ast.data
@@ -313,7 +321,7 @@ def pp_commande(ast):
     if ast.data == "assignation_dict_literal":
         dict_name = ast.children[0].value
         pairs = []
-        for i in range(1, len(ast.children) - 1, 2):
+        for i in range(1, len(ast.children), 2):
             key = pp_expression(ast.children[i])
             value = pp_expression(ast.children[i + 1])
             pairs.append(f"{key}: {value}")
@@ -341,19 +349,39 @@ def asm_commande(ast, env) -> str:
 
             if type_var == "double" and type_expr == "int":
                 return f"{asm_expr}\ncvtsi2sd xmm0, rax\nmovsd [{lhs}], xmm0\n"
+            
+
+
+            if type_var == "int" or type_var=="str":
+                return f"{asm_expr}\nmov [{lhs}], rax\n"
+            elif type_var == "double":
+                return f"{asm_expr}\nmovsd [{lhs}], xmm0\n"
+                
+            raise TypeError(f"type de variable inconnu : {type_var}")
 
             if type_var != type_expr:
                 raise TypeError(
                     f"Assignation invalide: '{lhs}' est de type {type_var}, "
                     f"mais on lui assigne un {type_expr}"
                 )
-
-            if type_var == "int" or type_var=="str":
-                return f"{asm_expr}\nmov [{lhs}], rax\n"
-            elif type_var == "double":
-                return f"{asm_expr}\nmovsd [{lhs}], xmm0\n"
-            
-            raise TypeError(f"type de variable inconnu : {type_var}")
+        case "sequence":
+            cg = asm_commande(ast.children[0], env)
+            cd = asm_commande(ast.children[1], env)
+            return f"{cg}{cd}"
+        
+        case "assignation_dict":
+            dict_name = ast.children[0].value
+            key = asm_expression(ast.children[1], env)
+            value = asm_expression(ast.children[2], env)
+            return f"""{value}
+                        push rax
+                        {key}
+                        pop rbx
+                        mov rdx, rbx
+                        mov rsi, rax
+                        mov rdi, [{dict_name}]
+                        call set_in_dict
+                        """
 
         case "pass":
             return "nop\n"
@@ -447,18 +475,40 @@ def asm_liste_vars(ast) -> str:
                         mov rax, [rdi]
                         mov [{nom_var}], rax""")
         if ast.children[i].children[0].value == "dict":
-            continue 
-
+            res.append(f"""mov rdi, [argv]
+                            add rdi, {(i+1)*8}
+                            call init_dict
+                            mov [{ast.children[i].children[1].value}], rax""") 
+        else:
+            res.append(f"""mov rdi, [argv]
+                            add rdi, {(i+1)*8}
+                            call atoi
+                            mov [{ast.children[i].children[1].value}], rax""")
     return "\n".join(res) + "\n"
 
-
 def asm_decls_vars(ast):
-    # TODO pour l'instant, on part du principe qu'on a des variables de taille 8
+    # TODO pour l'instant, on part du principe qu'on a des int
     # ast.children[i].children[0] contient le type
-    return "\n".join(
-        f"{ast.children[i].children[1].value}: dq 0" for i in range(len(ast.children))
-    )
+    result = []
+    for i in range(len(ast.children)):
 
+        if ast.children[i].children[0].value == "dict":
+            result.append(f"{ast.children[i].children[1].value} db 0 ; dict {ast.children[i].children[2].value} -> {ast.children[i].children[3].value}")
+        else:
+            result.append(f"{ast.children[i].children[1].value} dq 0 ; {ast.children[i].children[0].value}")
+    return "\n".join(result) + "\n"
+
+def pp_decl_vars(ast):
+    result = []
+    for i in range(len(ast.children)):
+        if ast.children[i].children[0].value == "dict":
+            if len(ast.children[i].children) == 4:
+                result.append(f"dict {ast.children[i].children[1].value}<{ast.children[i].children[2].value},{ast.children[i].children[3].value}>;")
+            else:
+                result.append(f"dict {ast.children[i].children[1].value};")
+        else:
+            result.append(f"{ast.children[i].children[0].value} {ast.children[i].children[1].value};")
+    return "\n".join(result) + "\n"
 
 def pp_main(ast):
     vs = pp_liste_vars(ast.children[0])
