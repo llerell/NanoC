@@ -10,12 +10,18 @@ vars : (decl ",")* decl -> liste_vars
 expression : IDENTIFIER -> variable
            | SIGNED_NUMBER -> entier
            | expression OPBIN expression -> binaire
-commande : IDENTIFIER "=" expression ";" -> assignation
+           | IDENTIFIER "[" expression "]" -> dict_access
+commande : IDENTIFIER "=" expression ";" -> assignation 
 | commande* commande -> sequence
 | "pass" -> pass
 | "print" "(" expression ")" ";" -> print
 | "if" "(" expression ")" "{" commande "}" -> if
 | "while" "(" expression ")" "{" commande "}" -> while
+
+| IDENTIFIER "[" expression "]" "=" expression ";" -> assignation_dict
+| IDENTIFIER "=" "{" (expression ":" expression ",")* expression ":" expression "}" ";" -> assignation_dict_literal
+| "del" IDENTIFIER "[" expression "]" ";" -> del_dict
+| "foreach" "(" IDENTIFIER "in" IDENTIFIER ")" "{" commande "}" -> foreach_dict
 main: "main" "(" vars ")" "{" commande "return" expression ";" "}"
 %import common.WS
 %import common.SIGNED_NUMBER
@@ -136,7 +142,7 @@ def asm_liste_vars(ast):
     res = []
     for i in range(len(ast.children)):
         if ast.children[i].children[0].value == "dict":
-            continue
+            continue 
         res.append(f"""mov rdi, [argv]
                         add rdi, {(i+1)*8}
                         call atoi
