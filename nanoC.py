@@ -4,7 +4,9 @@ grammaire = lark.Lark(
     r"""
 IDENTIFIER: /[a-zA-Z_][a-zA-Z_0-9]*/
 OPBIN: /[+\-*\/<>]/
-vars : (IDENTIFIER ",")* IDENTIFIER -> liste_vars
+TYPE : "int" | "float" | "str" | "dict"
+decl : TYPE IDENTIFIER | TYPE IDENTIFIER "<" TYPE "," TYPE ">"
+vars : (decl ",")* decl -> liste_vars
 expression : IDENTIFIER -> variable
            | SIGNED_NUMBER -> entier
            | expression OPBIN expression -> binaire
@@ -116,34 +118,63 @@ def asm_commande(ast):
         cmd = asm_commande(ast.children[1])
         cpt = next(compteur)
         return f"""{test}
-        cmp rax, 0
-        jz fin_{cpt}
-        {cmd}
-        fin_{cpt}:
-        """
+                    cmp rax, 0
+                    jz fin_{cpt}
+                    {cmd}
+                    fin_{cpt}:
+                    """
 
 
 def pp_liste_vars(ast):
-    return ", ".join((v.value for v in ast.children))
-
-
-def asm_liste_vars(ast):
     res = []
     for i in range(len(ast.children)):
+        res.append(ast.children[i].children[1]) 
+    return ", ".join(res)
+
+def asm_liste_vars(ast):
+    # TODO modifier selon le type
+    res = []
+    for i in range(len(ast.children)):
+        if ast.children[i].children[0].value == "dict":
+            continue
         res.append(f"""mov rdi, [argv]
                         add rdi, {(i+1)*8}
                         call atoi
-                        mov [{ast.children[i].value}], rax""")
+                        mov [{ast.children[i].children[1].value}], rax""")
     return "\n".join(res) + "\n"
 
 def asm_decls_vars(ast):
-    return "\n".join(f"{ast.children[i].value}: dq 0" for i in range(len(ast.children))) + "\n"
+    # TODO pour l'instant, on part du principe qu'on a des int
+    # ast.children[i].children[0] contient le type
+    result = []
+    for i in range(len(ast.children)):
+        if ast.children[i].children[0].value == "dict":
+            continue
+            result.append(f"{ast.children[i].children[1].value} db 0 ; dict {ast.children[i].children[2].value} -> {ast.children[i].children[3].value}")
+        else:
+            result.append(f"{ast.children[i].children[1].value} dq 0 ; {ast.children[i].children[0].value}")
+    return "\n".join(result) + "\n"
+
+def pp_decl_vars(ast):
+    result = []
+    for i in range(len(ast.children)):
+        if ast.children[i].children[0].value == "dict":
+            result.append(f"dict {ast.children[i].children[1].value}<{ast.children[i].children[2].value},{ast.children[i].children[3].value}>;")
+        else:
+            result.append(f"{ast.children[i].children[0].value} {ast.children[i].children[1].value};")
+    return "\n".join(result) + "\n"
 
 def pp_main(ast):
+    decls = pp_decl_vars(ast.children[0])
     vs = pp_liste_vars(ast.children[0])
     cmd = pp_commande(ast.children[1])
     ret = pp_expression(ast.children[2])
-    return f"main({vs})\n    {cmd}\n    return ({ret});"
+    return f"""main({vs}) {{
+{decls}
+{cmd}
+return {ret};
+}}
+"""
 
 def asm_main(ast):
     decls = asm_decls_vars(ast.children[0])
@@ -156,13 +187,14 @@ def asm_main(ast):
     squelette = squelette.replace("COMMAND", cmd)
     squelette = squelette.replace("RETURN", ret)
     squelette = squelette.replace("  ", "")
-
-
     return squelette
     
 
 if __name__ == "__main__":
     src = open("source.c").read()
     t = grammaire.parse(src)
+    
     with open("resultat.asm", "w") as f:
         f.write(asm_main(t))
+    with open("pretty.txt",  'w') as f:
+        f.write(pp_main(t))
