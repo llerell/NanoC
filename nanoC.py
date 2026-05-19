@@ -33,6 +33,7 @@ commande : IDENTIFIER "=" expression ";" -> assignation
 | IDENTIFIER "=" "{" (expression ":" expression ",")* expression ":" expression "}" ";" -> assignation_dict_literal
 | "del" IDENTIFIER "[" expression "]" ";" -> del_dict
 | "foreach" "(" IDENTIFIER "in" IDENTIFIER ")" "{" commande "}" -> foreach_dict
+
 main: "main" "(" vars ")" "{" commande "return" expression ";" "}"
 %import common.WS
 %import common.SIGNED_INT
@@ -70,10 +71,15 @@ def pp_expression(ast):
         return f"atoi({pp_expression(ast.children[0])})"
     if ast.data=="charAt":
         return f"charat({pp_expression(ast.children[0])}, {pp_expression(ast.children[1])})"
-    eg = f"{pp_expression(ast.children[0])}"
-    op = ast.children[1].value
-    ed = f"{pp_expression(ast.children[2])}"
-    return f"{eg} {op} {ed}"
+    if ast.data == "binaire":
+        eg = f"{pp_expression(ast.children[0])}"
+        op = ast.children[1].value
+        ed = f"{pp_expression(ast.children[2])}"
+        return f"{eg} {op} {ed}"
+    if ast.data == "dict_access":
+        dict_name = ast.children[0].value
+        key = pp_expression(ast.children[1])
+        return f"{dict_name}[{key}]"
 
 
 def asm_expression(ast, env: dict[str, str]) -> tuple[str, str]:
@@ -293,11 +299,35 @@ def pp_commande(ast):
     if ast.data == "sequence":
         cg = pp_commande(ast.children[0])
         cd = pp_commande(ast.children[1])
-        return f"{cg}{cd}"
+        return f"{cg}\n{cd}"
     if ast.data in ("if", "while"):
         cg = pp_expression(ast.children[0])
         cd = pp_commande(ast.children[1])
         return f"{ast.data}({cg}) {{{cd}}}"
+
+    if ast.data == "assignation_dict":
+        dict_name = ast.children[0].value
+        key = pp_expression(ast.children[1])
+        value = pp_expression(ast.children[2])
+        return f"{dict_name}[{key}] = {value};"
+    if ast.data == "assignation_dict_literal":
+        dict_name = ast.children[0].value
+        pairs = []
+        for i in range(1, len(ast.children) - 1, 2):
+            key = pp_expression(ast.children[i])
+            value = pp_expression(ast.children[i + 1])
+            pairs.append(f"{key}: {value}")
+        return f"{dict_name} = {{{', '.join(pairs)}}};"
+    if ast.data == "del_dict":
+        dict_name = ast.children[0].value
+        key = pp_expression(ast.children[1])
+        return f"del {dict_name}[{key}];"
+    if ast.data == "foreach_dict":
+        var_name = ast.children[0].value
+        dict_name = ast.children[1].value
+        cmd = pp_commande(ast.children[2])
+        return f"foreach({var_name} in {dict_name}) \n{{\n{cmd}\n}}"
+    
 
 
 def asm_commande(ast, env) -> str:  
