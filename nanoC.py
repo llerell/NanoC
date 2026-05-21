@@ -82,10 +82,14 @@ def asm_expression(ast, env:dict) -> tuple[str, str]:
         op = ast.children[1].value
         type_d, asm_d = asm_expression(ast.children[2], env)
 
-        if type_g != type_d:
-            raise TypeError(f"Incompatibilité de types: impossible de faire '{type_g} {op} {type_d}'")
+        if type_g == "int" and type_d == "double":
+            asm_g = asm_g + "cvtsi2sd xmm0, rax\n"
+            type_g = "double"
+        elif type_g == "double" and type_d == "int":
+            asm_d = asm_d + "cvtsi2sd xmm0, rax\n"
+            type_d = "double"
 
-        if type_g == "int":
+        if type_g == type_d == "int":
             base_asm = f"{asm_d}push rax\n{asm_g}pop rbx\n"
             opbin = {"+": "add", "-": "sub", "*": "imul"}
             
@@ -98,7 +102,7 @@ def asm_expression(ast, env:dict) -> tuple[str, str]:
 
             raise NotImplementedError(f"Opérateur non implémenté : {op}")
                 
-        if type_g == "double":
+        if type_g == type_d == "double":
             # Attention, pour empiler xmm0, il faut utiliser la pile manuellement (rsp)
             base_asm = f"""{asm_d}
                            sub rsp, 8
@@ -114,7 +118,10 @@ def asm_expression(ast, env:dict) -> tuple[str, str]:
             if op == "<":
                 return "int", base_asm + "ucomisd xmm0, xmm1\nsetb al\nmovzx rax, al\n"
             if op == ">":
-                return "int", base_asm + "ucomisd xmm1, xmm0\nsetb al\nmovzx rax, al\n" 
+                return "int", base_asm + "ucomisd xmm1, xmm0\nsetb al\nmovzx rax, al\n"
+    
+
+        raise TypeError(f"Incompatibilité de types: impossible de faire '{type_g} {op} {type_d}'")
 
     raise NotImplementedError(f"Nœud inconnu : {ast.data}")
 
@@ -144,9 +151,15 @@ def asm_commande(ast, env): # N'oublie pas de passer l'environnement partout
         
         # On récupère le type et le code de l'expression
         type_expr, asm_expr = asm_expression(ast.children[1], env)
-        
+
+        if type_var == "double" and type_expr == "int":
+            return f"{asm_expr}\ncvtsi2sd xmm0, rax\nmovsd [{lhs}], xmm0\n"
+
         if type_var != type_expr:
-            raise TypeError(f"Assignation invalide: la variable {lhs} est de type {type_var}, mais on lui assigne un {type_expr}")
+            raise TypeError(
+                f"Assignation invalide: '{lhs}' est de type {type_var}, "
+                f"mais on lui assigne un {type_expr}"
+            )
 
         if type_var == "int":
             return f"{asm_expr}\nmov [{lhs}], rax\n"
@@ -194,7 +207,7 @@ def asm_commande(ast, env): # N'oublie pas de passer l'environnement partout
                     fin_{cpt}:"""
 
     if ast.data == "if":
-        test = asm_expression(ast.children[0])
+        test = asm_expression(ast.children[0], env)
         if test[0] != "int":
             raise TypeError("La condition n'est pas un booléen")
 
