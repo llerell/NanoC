@@ -1,7 +1,7 @@
 main(int x, double y, double z){
-    z = 1;
+    z = 1e-3;
     x = 1;
-    y = 4;
+    y = 4e-5;
     while(x){
         z = z * 2;
         x = x - 1;

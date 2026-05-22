@@ -12,6 +12,7 @@ expression : IDENTIFIER -> variable
            | SIGNED_FLOAT -> double
            | "(" expression ")" -> expression
            | expression OPBIN expression -> binaire
+           | TYPE "(" expression ")" -> conversion
 commande : IDENTIFIER "=" expression ";" -> assignation
 | commande* commande -> sequence
 | "pass" -> pass
@@ -38,8 +39,8 @@ def construire_env(ast_vars) -> dict[str, str]:
     """
     env = {}
     for decl in ast_vars.children:
-        type_var = decl.children[0].value # "int" ou "double"
-        nom_var = decl.children[1].value  # "x" ou "y"
+        type_var = decl.children[0].value
+        nom_var = decl.children[1].value
         env[nom_var] = type_var
     return env
 
@@ -76,6 +77,22 @@ def asm_expression(ast, env:dict) -> tuple[str, str]:
         elif type_var == "double":
             return "double", f"movsd xmm0, [{nom}]\n"
 
+    if ast.data == "conversion":
+        type_cible = ast.children[0].value
+        type_src, asm_src = asm_expression(ast.children[1], env)
+
+        if type_src == type_cible:
+            return type_cible, asm_src
+
+        if type_cible == "double" and type_src == "int":
+            return "double", asm_src + "cvtsi2sd xmm0, rax\n"
+
+        if type_cible == "int" and type_src == "double":
+            # arrondi au plus proche
+            return "int", asm_src + "cvtsd2si rax, xmm0\n"
+
+        raise TypeError(f"Conversion impossible : {type_src} vers {type_cible}")
+        
 
     if ast.data == "binaire":
         type_g, asm_g = asm_expression(ast.children[0], env)
@@ -211,7 +228,7 @@ def asm_commande(ast, env): # N'oublie pas de passer l'environnement partout
         if test[0] != "int":
             raise TypeError("La condition n'est pas un booléen")
 
-        cmd = asm_commande(ast.children[1])
+        cmd = asm_commande(ast.children[1], env)
         cpt = next(compteur)
         return f"""{test[1]}
                     cmp rax, 0
