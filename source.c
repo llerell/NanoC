@@ -7,6 +7,7 @@ main(int x, double y, double z){
         x = x - 1;
     }
     z = z / 3;
-    print(z);
+    x = x & 1 | 0;
+    print(35.0/3);
     return y;
 }
