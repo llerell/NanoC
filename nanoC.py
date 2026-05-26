@@ -25,6 +25,8 @@ main: "main" "(" vars ")" "{" commande "return" expression ";" "}"
 %import common.SIGNED_INT
 %import common.SIGNED_FLOAT
 %ignore WS
+%ignore /\/\/[^\n\r]*/
+%ignore /\/\*[\s\S]*?\*\//
 """,
     start="main",
 )
