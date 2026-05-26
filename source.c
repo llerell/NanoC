@@ -1,10 +1,12 @@
-main(int x, int y, double z){
-    z = 1.0;
+main(int x, double y, double z){
+    z = 1e-3;
     x = 1;
+    y = 4e-5;
     while(x){
-        z = z * 2.0;
+        z = z * 2;
         x = x - 1;
     }
+    z = z / 3;
     print(z);
     return y;
 }
