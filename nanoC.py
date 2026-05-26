@@ -156,12 +156,12 @@ def asm_expression(ast, env: dict) -> tuple[str, str]:
         if type_g == type_d == "double":
             # Attention, pour empiler xmm0, il faut utiliser la pile manuellement (rsp)
             base_asm = f"""{asm_d}
-                           sub rsp, 8
-                           movsd [rsp], xmm0
-                           {asm_g}
-                           movsd xmm1, [rsp]
-                           add rsp, 8
-                        """
+                                sub rsp, 8
+                                movsd [rsp], xmm0
+                                {asm_g}
+                                movsd xmm1, [rsp]
+                                add rsp, 8
+                            """
             opbin = {"+": "addsd", "-": "subsd", "*": "mulsd", "/": "divsd"}
             opcomp = {
                 "<": "setb",
@@ -314,12 +314,8 @@ def asm_liste_vars(ast) -> str:
 def asm_decls_vars(ast):
     # TODO pour l'instant, on part du principe qu'on a des variables de taille 8
     # ast.children[i].children[0] contient le type
-    return (
-        "\n".join(
-            f"{ast.children[i].children[1].value}: dq 0"
-            for i in range(len(ast.children))
-        )
-        + "\n"
+    return "\n".join(
+        f"{ast.children[i].children[1].value}: dq 0" for i in range(len(ast.children))
     )
 
 
@@ -343,8 +339,6 @@ def asm_main(ast):
     asm_consts = "\n".join(
         f"{label}: dq {valeur}" for valeur, label in constantes.items()
     )
-    if asm_consts:
-        decls += "\n" + asm_consts + "\n"
 
     # On récupère juste le code asm de l'expression de retour (index 1 du tuple)
     type_ret, ret_asm = asm_expression(ast.children[2], env)
@@ -352,6 +346,7 @@ def asm_main(ast):
     squelette = open("squelette.asm").read()
     squelette = squelette.replace("INIT_VARS", vs)
     squelette = squelette.replace("DECL_VARS", decls)
+    squelette = squelette.replace("CONSTANTES", asm_consts)
     squelette = squelette.replace("COMMAND", cmd)
     squelette = squelette.replace("RETURN", ret_asm)
     squelette = squelette.replace("  ", "")
