@@ -59,18 +59,23 @@ def pp_expression(ast):
 
 
 def asm_expression(ast, env: dict) -> tuple[str, str]:
-    if ast.data == "entier":
-        return "int", f"mov rax, {ast.children[0].value}\n"
 
-    if ast.data == "double":
+    if ast.data in ("entier", "double"):
+        type_lit = ast.data
         valeur = ast.children[0].value
-        if valeur not in constantes:
-            label = f"const_float_{len(constantes)}"
-            constantes[valeur] = label
-        else:
-            label = constantes[valeur]
 
-        return "double", f"movsd xmm0, [{label}]\n"
+        # vérification de la présence de la constante
+        if (type_lit, valeur) not in constantes:
+            label = f"const_{type_lit}_{len(constantes)}"
+            constantes[(type_lit, valeur)] = label
+        else:
+            label = constantes[(type_lit, valeur)]
+
+        if type_lit == "entier":
+            return "int", f"mov rax, [{label}]\n"
+
+        if type_lit == "double":
+            return "double", f"movsd xmm0, [{label}]\n"
 
     if ast.data == "variable":
         nom = ast.children[0].value
@@ -337,7 +342,7 @@ def asm_main(ast):
 
     # Génération des constantes (const_float_0: dq 3.14)
     asm_consts = "\n".join(
-        f"{label}: dq {valeur}" for valeur, label in constantes.items()
+        f"{label}: dq {valeur[1]}" for valeur, label in constantes.items()
     )
 
     # On récupère juste le code asm de l'expression de retour (index 1 du tuple)
