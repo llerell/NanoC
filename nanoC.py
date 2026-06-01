@@ -106,10 +106,11 @@ def asm_expression(ast, env: dict) -> tuple[str, str]:
         type_expr, asm_expr = asm_expression(ast.children[0], env)
         if type_expr != "int":
             raise TypeError("Le non logique ne s'applique qu'aux variables de type int")
-        asm = f"""{asm_src}
+        asm = f"""{asm_expr}
                   cmp rax, 0
                   sete al
-                  movzx rax, al"""
+                  movzx rax, al
+                  """
         return "int", asm
 
     if ast.data == "binaire":
