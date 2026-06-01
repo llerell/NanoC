@@ -3,11 +3,10 @@ import lark
 grammaire = lark.Lark(
     r"""
 IDENTIFIER: /[a-zA-Z_][a-zA-Z_0-9]*/
-OPBIN: /[+\-*\/<>]/
-TYPE : "int" | "double" | "str"
 STRING : /"[^"]*"/
 CHAR : /'[^']'/
-
+OPBIN: /<=|>=|==|!=|[+\-*\/<>%&|^]/
+TYPE : "int" | "double" | "str"
 decl : TYPE IDENTIFIER
 vars : (decl ",")* decl -> liste_vars
 expression : IDENTIFIER -> variable
@@ -20,7 +19,8 @@ expression : IDENTIFIER -> variable
            | "len" "(" expression ")" -> len
            | "charAt" "(" expression "," expression ")" -> charat
            | "atoi" "(" expression ")" -> atoi
-
+           | "!" expression -> non_logique
+           | TYPE "(" expression ")" -> conversion
 commande : IDENTIFIER "=" expression ";" -> assignation
 | commande* commande -> sequence
 | "pass" -> pass
@@ -32,6 +32,8 @@ main: "main" "(" vars ")" "{" commande "return" expression ";" "}"
 %import common.SIGNED_INT
 %import common.SIGNED_FLOAT
 %ignore WS
+%ignore /\/\/[^\n\r]*/
+%ignore /\/\*[\s\S]*?\*\//
 """,
     start="main",
 )
@@ -54,7 +56,7 @@ def construire_env(ast_vars) -> dict[str, str]:
 
 
 def pp_expression(ast):
-    if ast.data in ("variable", "entier", "chaine", "caractere"):
+    if ast.data in ("variable", "entier", "flottant", "chaine", "caractere"):
         return ast.children[0].value
     if ast.data=="len":
         return f"len({pp_expression(ast.children[0])})"
@@ -68,10 +70,10 @@ def pp_expression(ast):
     return f"{eg} {op} {ed}"
 
 
-def asm_expression(ast, env:dict) -> tuple[str, str]:   #renvoie le type du resultat de l'expression (str) et le corps asm
+def asm_expression(ast, env: dict) -> tuple[str, str]:
     if ast.data == "entier":
         return "int", f"mov rax, {ast.children[0].value}\n"
-        
+
     if ast.data == "double":
         valeur = ast.children[0].value
         if valeur not in constantes:
@@ -79,18 +81,19 @@ def asm_expression(ast, env:dict) -> tuple[str, str]:   #renvoie le type du resu
             constantes[valeur] = label
         else:
             label = constantes[valeur]
+
         return "double", f"movsd xmm0, [{label}]\n"
-        
+
     if ast.data == "variable":
         nom = ast.children[0].value
         type_var = env[nom]
+
         if type_var == "int":
             return "int", f"mov rax, [{nom}]\n"
         elif type_var == "double":
             return "double", f"movsd xmm0, [{nom}]\n"
         elif type_var=="str":
             return "str", f"mov rax, [{nom}]\n"
-        
     if ast.data == "chaine":
         lbl = f"lit_{next(compteur)}"
         valeur = ast.children[0].value
@@ -103,31 +106,83 @@ def asm_expression(ast, env:dict) -> tuple[str, str]:   #renvoie le type du resu
         return "int", f"mov rax, {ast.children[0].value}\n"
     #un carac est vu comme sa valeur ascii par le processeur
 
+    if ast.data == "conversion":
+        type_cible = ast.children[0].value
+        type_src, asm_src = asm_expression(ast.children[1], env)
+
+        if type_src == type_cible:
+            return type_cible, asm_src
+
+        if type_cible == "double" and type_src == "int":
+            return "double", asm_src + "cvtsi2sd xmm0, rax\n"
+
+        if type_cible == "int" and type_src == "double":
+            # arrondi au plus proche
+            return "int", asm_src + "cvtsd2si rax, xmm0\n"
+
+        raise TypeError(f"Conversion impossible : {type_src} vers {type_cible}")
+
+    if ast.data == "non_logique":
+        type_expr, asm_expr = asm_expression(ast.children[0], env)
+        if type_expr != "int":
+            raise TypeError("Le non logique ne s'applique qu'aux variables de type int")
+        asm = f"""{asm_expr}
+                  cmp rax, 0
+                  sete al
+                  movzx rax, al
+                  """
+        return "int", asm
+
     if ast.data == "binaire":
         type_g, asm_g = asm_expression(ast.children[0], env)
         op = ast.children[1].value
         type_d, asm_d = asm_expression(ast.children[2], env)
-
-        if type_g != type_d:
-            raise TypeError(f"Incompatibilité de types: impossible de faire '{type_g} {op} {type_d}'")
-
+        
         if (type_g == "str" and type_d =="str" and op=="+"):
             return "str", asm_concat(asm_g,asm_d)
 
-        if type_g == "int":
+        if type_g == "int" and type_d == "double":
+            asm_g = asm_g + "cvtsi2sd xmm0, rax\n"
+            type_g = "double"
+        elif type_g == "double" and type_d == "int":
+            asm_d = asm_d + "cvtsi2sd xmm0, rax\n"
+            type_d = "double"
+
+        if type_g == type_d == "int":
             base_asm = f"{asm_d}push rax\n{asm_g}pop rbx\n"
-            opbin = {"+": "add", "-": "sub", "*": "imul"}
-            
+            opbin = {
+                "+": "add",
+                "-": "sub",
+                "*": "imul",
+                "&": "and",
+                "|": "or",
+                "^": "xor",
+            }
+            opcomp = {
+                "<": "setl",
+                ">": "setg",
+                "<=": "setle",
+                ">=": "setge",
+                "==": "sete",
+                "!=": "setne",
+            }
+
+            if op == "/":
+                return "int", base_asm + "cqo\nidiv rbx\n"
+            if op == "%":
+                return "int", base_asm + "cqo\nidiv rbx\nmov rax, rdx\n"
+
             if op in opbin:
                 return "int", base_asm + f"{opbin[op]} rax, rbx\n"
-            if op == "<":
-                return "int", base_asm + "cmp rax, rbx\nsetl al\nmovzx rax, al\n"
-            if op == ">":
-                return "int", base_asm + "cmp rbx, rax\nsetg al\nmovzx rax, al\n"
+            if op in opcomp:
+                return (
+                    "int",
+                    base_asm + f"cmp rax, rbx\n{opcomp[op]} al\nmovzx rax, al\n",
+                )
 
             raise NotImplementedError(f"Opérateur non implémenté : {op}")
-                
-        if type_g == "double":
+
+        if type_g == type_d == "double":
             # Attention, pour empiler xmm0, il faut utiliser la pile manuellement (rsp)
             base_asm = f"""{asm_d}
                            sub rsp, 8
@@ -137,14 +192,22 @@ def asm_expression(ast, env:dict) -> tuple[str, str]:   #renvoie le type du resu
                            add rsp, 8
                         """
             opbin = {"+": "addsd", "-": "subsd", "*": "mulsd", "/": "divsd"}
-            
+            opcomp = {
+                "<": "setb",
+                ">": "seta",
+                "<=": "setbe",
+                ">=": "setae",
+                "==": "sete",
+                "!=": "setne",
+            }
+
             if op in opbin:
                 return "double", base_asm + f"{opbin[op]} xmm0, xmm1\n"
-            if op == "<":
-                return "int", base_asm + "ucomisd xmm0, xmm1\nsetb al\nmovzx rax, al\n"
-            if op == ">":
-                return "int", base_asm + "ucomisd xmm1, xmm0\nsetb al\nmovzx rax, al\n" 
-
+            if op in opcomp:
+                return (
+                    "int",
+                    base_asm + f"ucomisd xmm0, xmm1\n{opcomp[op]} al\nmovzx rax, al\n",
+                )
     if ast.data=="atoi":
         # On évalue ce qu'il y a dans les parenthèses
         type_expr, code = asm_expression(ast.children[0],env) #si atoi("123"), dans code il y a l'asm qui met l'adresse de "123" dans rax
@@ -167,6 +230,11 @@ def asm_expression(ast, env:dict) -> tuple[str, str]:   #renvoie le type du resu
         return "int", code_charat
     #byte : ne lire qu'un seul octet (un carac fait 8bits)
     # au final, rax contient la valeur numérique du caractère demandé
+
+   raise TypeError(
+            f"Incompatibilité de types: impossible de faire '{type_g} {op} {type_d}'"
+        )
+
     raise NotImplementedError(f"Nœud inconnu : {ast.data}")
 
 def asm_concat(asm_g,asm_d):    #TODOTODOTODOTODO
@@ -215,17 +283,25 @@ def pp_commande(ast):
         cd = pp_commande(ast.children[1])
         return f"{ast.data}({cg}) {{{cd}}}"
 
-def asm_commande(ast, env): # N'oublie pas de passer l'environnement partout
+
+def asm_commande(ast, env):  # N'oublie pas de passer l'environnement partout
     if ast.data == "assignation":
         lhs = ast.children[0].value
         type_var = env[lhs]
-        
-        type_expr, asm_expr = asm_expression(ast.children[1], env)
-        
-        if type_var != type_expr:
-            raise TypeError(f"Assignation invalide: la variable {lhs} est de type {type_var}, mais on lui assigne un {type_expr}")
 
-        if type_var == "int" or type_var=="str": #pointeurs de chaines str = 8 octets en mémoire comme les int
+        # On récupère le type et le code de l'expression
+        type_expr, asm_expr = asm_expression(ast.children[1], env)
+
+        if type_var == "double" and type_expr == "int":
+            return f"{asm_expr}\ncvtsi2sd xmm0, rax\nmovsd [{lhs}], xmm0\n"
+
+        if type_var != type_expr:
+            raise TypeError(
+                f"Assignation invalide: '{lhs}' est de type {type_var}, "
+                f"mais on lui assigne un {type_expr}"
+            )
+
+        if type_var == "int" or type_var=="str":
             return f"{asm_expr}\nmov [{lhs}], rax\n"
         elif type_var == "double":
             return f"{asm_expr}\nmovsd [{lhs}], xmm0\n"
@@ -278,9 +354,18 @@ def asm_commande(ast, env): # N'oublie pas de passer l'environnement partout
                     fin_{cpt}:"""
 
     if ast.data == "if":
-        test = asm_expression(ast.children[0],env)
+        test = asm_expression(ast.children[0], env)
         if test[0] != "int":
             raise TypeError("La condition n'est pas un booléen")
+
+        cmd = asm_commande(ast.children[1], env)
+        cpt = next(compteur)
+        return f"""{test[1]}
+                    cmp rax, 0
+                    jz fin_{cpt}
+                    {cmd}
+                    fin_{cpt}:
+                    """
 
         cmd = asm_commande(ast.children[1],env)
         cpt = next(compteur)
@@ -319,15 +404,25 @@ def asm_liste_vars(ast) -> str:
 
     return "\n".join(res) + "\n"
 
+
 def asm_decls_vars(ast):
+    # TODO pour l'instant, on part du principe qu'on a des variables de taille 8
     # ast.children[i].children[0] contient le type
-    return "\n".join(f"{ast.children[i].children[1].value}: dq 0" for i in range(len(ast.children))) + "\n"
+    return (
+        "\n".join(
+            f"{ast.children[i].children[1].value}: dq 0"
+            for i in range(len(ast.children))
+        )
+        + "\n"
+    )
+
 
 def pp_main(ast):
     vs = pp_liste_vars(ast.children[0])
     cmd = pp_commande(ast.children[1])
     ret = pp_expression(ast.children[2])
     return f"main({vs})\n    {cmd}\n    return ({ret});"
+
 
 def asm_main(ast):
     ast_vars = ast.children[0]
@@ -337,13 +432,15 @@ def asm_main(ast):
     cmd = asm_commande(ast.children[1], env)
 
     # Génération des constantes (const_float_0: dq 3.14)
-    asm_consts = "\n".join(f"{label}: dq {valeur}" for valeur, label in constantes.items())
+    asm_consts = "\n".join(
+        f"{label}: dq {valeur}" for valeur, label in constantes.items()
+    )
     if asm_consts:
         decls += "\n" + asm_consts + "\n"
-    
+
     # On récupère juste le code asm de l'expression de retour (index 1 du tuple)
-    type_ret, ret_asm = asm_expression(ast.children[2], env) 
-    
+    type_ret, ret_asm = asm_expression(ast.children[2], env)
+
     squelette = open("squelette.asm").read()
     squelette = squelette.replace("INIT_VARS", vs)
     squelette = squelette.replace("DECL_VARS", decls)
@@ -351,9 +448,8 @@ def asm_main(ast):
     squelette = squelette.replace("RETURN", ret_asm)
     squelette = squelette.replace("  ", "")
 
-
     return squelette
-    
+
 
 if __name__ == "__main__":
     src = open("source.c").read()

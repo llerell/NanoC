@@ -1,8 +1,17 @@
-main(str age, str prenom) {
-    print(prenom+prenom);
-    print(len(prenom));
-    print(charAt(prenom, 0));
-    print(atoi(age) + 1);
-
-    return 0;
+main(int x, double y, double z){
+    /*
+    début de la fonction
+    */
+    z = 1e-3;
+    x = 1;
+    y = 4e-5;
+    while(x){
+        z = z * 2;
+        x = x - 1;
+    }
+    z = z / 3;
+    x = ! x & 1 | 0;
+    print(35.0/3);
+    // bonsoir
+    return y;
 }
