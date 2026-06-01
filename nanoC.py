@@ -208,6 +208,11 @@ def asm_expression(ast, env: dict) -> tuple[str, str]:
                     "int",
                     base_asm + f"ucomisd xmm0, xmm1\n{opcomp[op]} al\nmovzx rax, al\n",
                 )
+
+            raise TypeError(
+                f"Incompatibilité de types: impossible de faire '{type_g} {op} {type_d}'"
+            )
+
     if ast.data=="atoi":
         # On évalue ce qu'il y a dans les parenthèses
         type_expr, code = asm_expression(ast.children[0],env) #si atoi("123"), dans code il y a l'asm qui met l'adresse de "123" dans rax
@@ -230,10 +235,6 @@ def asm_expression(ast, env: dict) -> tuple[str, str]:
         return "int", code_charat
     #byte : ne lire qu'un seul octet (un carac fait 8bits)
     # au final, rax contient la valeur numérique du caractère demandé
-
-   raise TypeError(
-            f"Incompatibilité de types: impossible de faire '{type_g} {op} {type_d}'"
-        )
 
     raise NotImplementedError(f"Nœud inconnu : {ast.data}")
 
@@ -359,15 +360,6 @@ def asm_commande(ast, env):  # N'oublie pas de passer l'environnement partout
             raise TypeError("La condition n'est pas un booléen")
 
         cmd = asm_commande(ast.children[1], env)
-        cpt = next(compteur)
-        return f"""{test[1]}
-                    cmp rax, 0
-                    jz fin_{cpt}
-                    {cmd}
-                    fin_{cpt}:
-                    """
-
-        cmd = asm_commande(ast.children[1],env)
         cpt = next(compteur)
         return f"""{test[1]}
                     cmp rax, 0
