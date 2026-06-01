@@ -71,18 +71,23 @@ def pp_expression(ast):
 
 
 def asm_expression(ast, env: dict) -> tuple[str, str]:
-    if ast.data == "entier":
-        return "int", f"mov rax, {ast.children[0].value}\n"
 
-    if ast.data == "double":
+    if ast.data in ("entier", "double"):
+        type_lit = ast.data
         valeur = ast.children[0].value
-        if valeur not in constantes:
-            label = f"const_float_{len(constantes)}"
-            constantes[valeur] = label
-        else:
-            label = constantes[valeur]
 
-        return "double", f"movsd xmm0, [{label}]\n"
+        # vérification de la présence de la constante
+        if (type_lit, valeur) not in constantes:
+            label = f"const_{type_lit}_{len(constantes)}"
+            constantes[(type_lit, valeur)] = label
+        else:
+            label = constantes[(type_lit, valeur)]
+
+        if type_lit == "entier":
+            return "int", f"mov rax, [{label}]\n"
+
+        if type_lit == "double":
+            return "double", f"movsd xmm0, [{label}]\n"
 
     if ast.data == "variable":
         nom = ast.children[0].value
@@ -185,12 +190,12 @@ def asm_expression(ast, env: dict) -> tuple[str, str]:
         if type_g == type_d == "double":
             # Attention, pour empiler xmm0, il faut utiliser la pile manuellement (rsp)
             base_asm = f"""{asm_d}
-                           sub rsp, 8
-                           movsd [rsp], xmm0
-                           {asm_g}
-                           movsd xmm1, [rsp]
-                           add rsp, 8
-                        """
+                                sub rsp, 8
+                                movsd [rsp], xmm0
+                                {asm_g}
+                                movsd xmm1, [rsp]
+                                add rsp, 8
+                            """
             opbin = {"+": "addsd", "-": "subsd", "*": "mulsd", "/": "divsd"}
             opcomp = {
                 "<": "setb",
@@ -400,12 +405,8 @@ def asm_liste_vars(ast) -> str:
 def asm_decls_vars(ast):
     # TODO pour l'instant, on part du principe qu'on a des variables de taille 8
     # ast.children[i].children[0] contient le type
-    return (
-        "\n".join(
-            f"{ast.children[i].children[1].value}: dq 0"
-            for i in range(len(ast.children))
-        )
-        + "\n"
+    return "\n".join(
+        f"{ast.children[i].children[1].value}: dq 0" for i in range(len(ast.children))
     )
 
 
@@ -425,10 +426,8 @@ def asm_main(ast):
 
     # Génération des constantes (const_float_0: dq 3.14)
     asm_consts = "\n".join(
-        f"{label}: dq {valeur}" for valeur, label in constantes.items()
+        f"{label}: dq {valeur[1]}" for valeur, label in constantes.items()
     )
-    if asm_consts:
-        decls += "\n" + asm_consts + "\n"
 
     # On récupère juste le code asm de l'expression de retour (index 1 du tuple)
     type_ret, ret_asm = asm_expression(ast.children[2], env)
@@ -436,6 +435,7 @@ def asm_main(ast):
     squelette = open("squelette.asm").read()
     squelette = squelette.replace("INIT_VARS", vs)
     squelette = squelette.replace("DECL_VARS", decls)
+    squelette = squelette.replace("CONSTANTES", asm_consts)
     squelette = squelette.replace("COMMAND", cmd)
     squelette = squelette.replace("RETURN", ret_asm)
     squelette = squelette.replace("  ", "")
