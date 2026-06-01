@@ -290,7 +290,7 @@ def pp_commande(ast):
         return f"{ast.data}({cg}) {{{cd}}}"
 
 
-def asm_commande(ast, env):  # N'oublie pas de passer l'environnement partout
+def asm_commande(ast, env) -> str:  # N'oublie pas de passer l'environnement partout
     if ast.data == "assignation":
         lhs = ast.children[0].value
         type_var = env[lhs]
@@ -311,6 +311,8 @@ def asm_commande(ast, env):  # N'oublie pas de passer l'environnement partout
             return f"{asm_expr}\nmov [{lhs}], rax\n"
         elif type_var == "double":
             return f"{asm_expr}\nmovsd [{lhs}], xmm0\n"
+        
+        raise TypeError(f"type de variable inconnu : {type_var}")
 
     if ast.data == "pass":
         return "nop\n"
@@ -339,6 +341,9 @@ def asm_commande(ast, env):  # N'oublie pas de passer l'environnement partout
                         xor rax, rax
                         call printf
                     """
+        
+        raise TypeError(f"Impossible d'imprimer le type {type_expr}")
+
 
     if ast.data == "sequence":
         cg = asm_commande(ast.children[0], env)
