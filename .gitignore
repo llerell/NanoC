@@ -3,5 +3,6 @@ a.out
 debut.*
 resultat.*
 .gitignore
+.claude
 output.txt
 pretty.txt

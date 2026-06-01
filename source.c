@@ -1,10 +1,18 @@
 main(int argument, dict mon_dict<int,int>,
+    dict dico2<int, dict<int,int>>,
     int cle_courante,
     int valeur_courante,
     int k, 
-    int v) {
+    int v,
+    int n) {
 
+    /*
+    ce code fait des choses
+    */
+
+    // oui ça fonctionne
     v = 0;
+    n = 0;
     mon_dict = {10: 100, 20: 200, 30: 300};
     
     mon_dict[40] = 400;
@@ -12,6 +20,8 @@ main(int argument, dict mon_dict<int,int>,
     
     del mon_dict[30];
     
+    dico2[0] = {10:100};
+    dico2[1] = mon_dict;
     print(valeur_courante);
     
     foreach(cle_courante in mon_dict) {
