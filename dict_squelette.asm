@@ -1,24 +1,3 @@
-default rel
-
-extern printf, atoi, atof, strlen, malloc, strcpy, strcat 
-section .data
-argv: dq 0
-format_entier: db "%lld", 10, 0
-format_flottant: db "%lf", 10, 0
-format_chaine: db "%s", 10, 0
-
-section .rodata
-CONSTANTES
-
-
-section .text
-global init_dict
-global set_in_dict
-global get_from_dict
-global delete_from_dict
-global dict_get_size
-global dict_get_key_by_index
-
 ; ==============================================================================
 ; init_dict
 ; Entrée: Rien
@@ -179,18 +158,3 @@ dict_get_key_by_index:
 .hors_limites:
     xor rax, rax
     ret
-section .data
-DECL_VARS
-global main
-section .text
-DICT
-main:
-push rbp
-mov rbp, rsp
-mov [argv], rsi
-INIT_VARS
-COMMAND
-
-end_main:
-leave
-ret

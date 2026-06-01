@@ -1,13 +1,18 @@
 import lark
 
+# TODO: types de dict: convertir
 grammaire = lark.Lark(
     r"""
 IDENTIFIER: /[a-zA-Z_][a-zA-Z_0-9]*/
 STRING : /"[^"]*"/
 CHAR : /'[^']'/
-OPBIN: /<=|>=|==|!=|[+\-*\/<>%&|^]/
-TYPE : "int" | "double" | "str"
 decl : TYPE IDENTIFIER
+OPBIN: /<=|>=|==|!=|[+\-*\/<>%&|^]/
+PRIMITIVE_TYPE : "int" | "double" | "str"
+COMPOSITE_TYPE : "dict"
+full_type : PRIMITIVE_TYPE | COMPOSITE_TYPE "<" PRIMITIVE_TYPE ","  full_type ">"
+decl : PRIMITIVE_TYPE IDENTIFIER | COMPOSITE_TYPE IDENTIFIER "<" PRIMITIVE_TYPE ","  full_type ">"
+
 vars : (decl ",")* decl -> liste_vars
 expression : IDENTIFIER -> variable
            | SIGNED_INT -> entier
@@ -22,15 +27,16 @@ expression : IDENTIFIER -> variable
            | "!" expression -> non_logique
            | TYPE "(" expression ")" -> conversion
            | IDENTIFIER "[" expression "]" -> dict_access
-commande : IDENTIFIER "=" expression ";" -> assignation 
+           | "!" expression -> non_logique
+           | PRIMITIVE_TYPE "(" expression ")" -> conversion
+           | "{" (expression ":" expression ",")* expression ":" expression "}" -> dict_literal
+commande : IDENTIFIER "=" expression ";" -> assignation
 | commande* commande -> sequence
 | "pass" -> pass
 | "print" "(" expression ")" ";" -> print
 | "if" "(" expression ")" "{" commande "}" -> if
 | "while" "(" expression ")" "{" commande "}" -> while
-
 | IDENTIFIER "[" expression "]" "=" expression ";" -> assignation_dict
-| IDENTIFIER "=" "{" (expression ":" expression ",")* expression ":" expression "}" ";" -> assignation_dict_literal
 | "del" IDENTIFIER "[" expression "]" ";" -> del_dict
 | "foreach" "(" IDENTIFIER "in" IDENTIFIER ")" "{" commande "}" -> foreach_dict
 
@@ -46,16 +52,23 @@ main: "main" "(" vars ")" "{" commande "return" expression ";" "}"
 )
 
 compteur = iter(range(1_000_000))
+
 constantes = {}
+temp_dict_labels = []
+
 
 def construire_env(ast_vars) -> dict[str, str]:
+    """
+    Parcourt l'AST des variables et retourne un dictionnaire { 'nom_var': 'type_var' }
+    Exemple: {'x': 'int', 'y': 'double'}
+    """
     env = {}
     for decl in ast_vars.children:
         type_var = decl.children[0].value
         nom_var = decl.children[1].value
         if decl.children[0].value == "dict":
             type_cle = decl.children[2].value
-            type_valeur = decl.children[3].value
+            type_valeur = pp_types(decl.children[3])
             type_var = f"dict<{type_cle},{type_valeur}>"
         env[nom_var] = type_var
     return env
@@ -79,25 +92,208 @@ def pp_expression(ast):
         dict_name = ast.children[0].value
         key = pp_expression(ast.children[1])
         return f"{dict_name}[{key}]"
-    
+    if ast.data == "dict_literal":
+        pairs = []
+        for i in range(0, len(ast.children)-1, 2):
+            key = pp_expression(ast.children[i])
+            value = pp_expression(ast.children[i + 1])
+            pairs.append(f"{key}: {value}")
+        return f"{{{', '.join(pairs)}}};"      
 
-def asm_expression(ast, env: dict[str, str]) -> tuple[str, str]:
+def asm_expression(ast, env: dict) -> tuple[str, str]:
+    if ast.data == "entier":
+        return "int", f"mov rax, {ast.children[0].value}\n"
 
-    match ast.data:
-        case "entier":
-            return "int", f"mov rax, {ast.children[0].value}\n"
-        case "dict_access":
-            dict_name = ast.children[0].value
-            key_asm = asm_expression(ast.children[1], env)
-            return "dict", f"""{key_asm}
-                        mov rsi, rax
-                        mov rdi, [{dict_name}]
-                        call get_from_dict
+    if ast.data == "double":
+        valeur = ast.children[0].value
+        if valeur not in constantes:
+            label = f"const_float_{len(constantes)}"
+            constantes[valeur] = label
+        else:
+            label = constantes[valeur]
+
+        return "double", f"movsd xmm0, [{label}]\n"
+
+    if ast.data == "variable":
+        nom = ast.children[0].value
+        type_var = env[nom]
+
+        if type_var == "int":
+            return "int", f"mov rax, [{nom}]\n"
+        elif type_var == "double":
+            return "double", f"movsd xmm0, [{nom}]\n"
+        elif type_var.startswith("dict"):
+            return type_var, f"mov rax, [{nom}]\n"
+        else:
+            raise TypeError(f"Type de variable non supporté : {type_var}")
+    if ast.data == "dict_access":
+        dict_name = ast.children[0].value
+        key_type, key_asm = asm_expression(ast.children[1], env)
+        dict_type = env[dict_name]
+        if not dict_type.startswith("dict"):
+            raise TypeError(f"Le type de {dict_name} n'est pas un dictionnaire")
+        
+        val_type = dict_type.split("<")[1].split(",")[1].replace(">", "")
+        return val_type, f"""{key_asm}
+                    mov rsi, rax
+                    mov rdi, [{dict_name}]
+                    call get_from_dict
+                    """
+    if ast.data == "conversion":
+        type_cible = ast.children[0].value
+        type_src, asm_src = asm_expression(ast.children[1], env)
+
+        if type_src == type_cible:
+            return type_cible, asm_src
+
+        if type_cible == "double" and type_src == "int":
+            return "double", asm_src + "cvtsi2sd xmm0, rax\n"
+
+        if type_cible == "int" and type_src == "double":
+            # arrondi au plus proche
+            return "int", asm_src + "cvtsd2si rax, xmm0\n"
+
+        raise TypeError(f"Conversion impossible : {type_src} vers {type_cible}")
+
+    if ast.data == "non_logique":
+        type_expr, asm_expr = asm_expression(ast.children[0], env)
+        if type_expr != "int":
+            raise TypeError("Le non logique ne s'applique qu'aux variables de type int")
+        asm = f"""{asm_expr}
+                  cmp rax, 0
+                  sete al
+                  movzx rax, al
+                  """
+        return "int", asm
+
+    if ast.data == "binaire":
+        type_g, asm_g = asm_expression(ast.children[0], env)
+        op = ast.children[1].value
+        type_d, asm_d = asm_expression(ast.children[2], env)
+
+        if type_g == "int" and type_d == "double":
+            asm_g = asm_g + "cvtsi2sd xmm0, rax\n"
+            type_g = "double"
+        elif type_g == "double" and type_d == "int":
+            asm_d = asm_d + "cvtsi2sd xmm0, rax\n"
+            type_d = "double"
+
+        if type_g == type_d == "int":
+            base_asm = f"{asm_d}push rax\n{asm_g}pop rbx\n"
+            opbin = {"+": "add", "-": "sub", "*": "imul"}
+            if op in opbin:
+                return "int", base_asm + f"{opbin[op]} rax, rbx\n"
+            if op == "<":
+                return "int", base_asm + "cmp rax, rbx\nsetl al\nmovzx rax, al\n"
+            if op == ">":
+                return "int", base_asm + "cmp rbx, rax\nsetg al\nmovzx rax, al\n"
+            raise NotImplementedError(f"Opérateur non implémenté : {op}")
+                
+        if type_g == type_d == "double":
+            # Attention, pour empiler xmm0, il faut utiliser la pile manuellement (rsp)
+            base_asm = f"""{asm_d}
+                           sub rsp, 8
+                           movsd [rsp], xmm0
+                           {asm_g}
+                           movsd xmm1, [rsp]
+                           add rsp, 8
                         """
+            opbin = {"+": "addsd", "-": "subsd", "*": "mulsd", "/": "divsd"}
+            opcomp = {
+                "<": "setb",
+                ">": "seta",
+                "<=": "setbe",
+                ">=": "setae",
+                "==": "sete",
+                "!=": "setne",
+            }
 
-        case "double":
-            type_lit = ast.data
-            valeur = ast.children[0].value
+
+            if op == "/":
+                return "int", base_asm + "cqo\nidiv rbx\n"
+            if op == "%":
+                return "int", base_asm + "cqo\nidiv rbx\nmov rax, rdx\n"
+
+            if op in opbin:
+                return "int", base_asm + f"{opbin[op]} rax, rbx\n"
+            if op in opcomp:
+                return (
+                    "int",
+                    base_asm + f"cmp rax, rbx\n{opcomp[op]} al\nmovzx rax, al\n",
+                )
+
+            raise NotImplementedError(f"Opérateur non implémenté : {op}")
+
+        if type_g == type_d == "double":
+            # Attention, pour empiler xmm0, il faut utiliser la pile manuellement (rsp)
+            base_asm = f"""{asm_d}
+                           sub rsp, 8
+                           movsd [rsp], xmm0
+                           {asm_g}
+                           movsd xmm1, [rsp]
+                           add rsp, 8
+                        """
+            opbin = {"+": "addsd", "-": "subsd", "*": "mulsd", "/": "divsd"}
+            opcomp = {
+                "<": "setb",
+                ">": "seta",
+                "<=": "setbe",
+                ">=": "setae",
+                "==": "sete",
+                "!=": "setne",
+            }
+
+            if op in opbin:
+                return "double", base_asm + f"{opbin[op]} xmm0, xmm1\n"
+            if op in opcomp:
+                return (
+                    "int",
+                    base_asm + f"ucomisd xmm0, xmm1\n{opcomp[op]} al\nmovzx rax, al\n",
+                )
+
+        raise TypeError(
+            f"Incompatibilité de types: impossible de faire '{type_g} {op} {type_d}'"
+        )
+
+    if ast.data == "dict_literal":
+        dict_name = f"dict_{next(compteur)}"
+        temp_dict_labels.append(dict_name)
+        asm_code = "call init_dict\nmov [" + dict_name + "], rax\n"
+        
+        key_type = asm_expression(ast.children[0], env)[0]
+        val_type = asm_expression(ast.children[1], env)[0]
+        dict_type = f"dict<{key_type},{val_type}>"
+
+        for i in range(0, len(ast.children)-1, 2):
+            key_node = ast.children[i]
+            val_node = ast.children[i+1]
+            
+            key_type, key_asm = asm_expression(key_node, env)
+            val_type, val_asm = asm_expression(val_node, env)
+            
+            if f"dict<{key_type},{val_type}>" != dict_type:
+                raise TypeError(f"La paire {key_type}:{val_type} ne correspond pas au type attendu de {dict_name} ({dict_type})")
+            
+            save_val = "sub rsp, 8\nmovsd [rsp], xmm0\n" if val_type in ("double", "str") else "push rax\n"
+            restore_val = "mov rdx, [rsp]\nadd rsp, 8\n" if val_type in ("double", "str") else "pop rdx\n"
+                
+            save_key = "sub rsp, 8\nmovsd [rsp], xmm0\n" if key_type in ("double", "str") else "push rax\n"
+            restore_key = "mov rsi, [rsp]\nadd rsp, 8\n" if key_type in ("double", "str") else "pop rsi\n"
+                
+            asm_code += f"""
+            {val_asm}
+            {save_val}
+            {key_asm}
+            {save_key}
+            lea rdi, [{dict_name}]
+            {restore_key}
+            {restore_val}
+            call set_in_dict
+            """
+        asm_code += f"mov rax, [{dict_name}]\n"
+        return f"dict<{key_type},{val_type}>", asm_code
+    
+    raise NotImplementedError(f"Nœud inconnu : {ast.data}")
 
             # vérification de la présence de la constante
             if (type_lit, valeur) not in constantes:
@@ -300,7 +496,7 @@ def pp_commande(ast):
         rhs = pp_expression(ast.children[1])
         return f"{lhs} = {rhs};"
     if ast.data == "pass":
-        return "pass"
+        return "pass\n"
     if ast.data == "print":
         return f"print({pp_expression(ast.children[0])});"
     if ast.data == "sequence":
@@ -335,25 +531,36 @@ def pp_commande(ast):
         return f"foreach({var_name} in {dict_name}) \n{{\n{cmd}\n}}"
     
 
-def asm_commande(ast, env):
+def asm_commande(ast, env):  # N'oublie pas de passer l'environnement partout
     if ast.data == "assignation":
         lhs = ast.children[0].value
         type_var = env[lhs]
+
+        # On récupère le type et le code de l'expression
         type_expr, asm_expr = asm_expression(ast.children[1], env)
-        
+
+        if type_var == "double" and type_expr == "int":
+            return f"{asm_expr}\ncvtsi2sd xmm0, rax\nmovsd [{lhs}], xmm0\n"
+
         if type_var != type_expr:
-            raise TypeError(f"Assignation invalide: la variable {lhs} est de type {type_var}, mais on lui assigne un {type_expr}")
+            raise TypeError(
+                f"Assignation invalide: '{lhs}' est de type {type_var}, "
+                f"mais on lui assigne un {type_expr}"
+            )
 
         if type_var == "int":
             return f"{asm_expr}\nmov [{lhs}], rax\n"
         elif type_var == "double":
             return f"{asm_expr}\nmovsd [{lhs}], xmm0\n"
+        elif type_var.startswith("dict"):
+            return f"{asm_expr}\nmov [{lhs}], rax\n"
 
     if ast.data == "pass":
         return "nop\n"
 
     if ast.data == "print":
         type_expr, asm_expr = asm_expression(ast.children[0], env)
+
         if type_expr == "int":
             return f"""{asm_expr}
                         mov rdi, format_entier
@@ -361,6 +568,7 @@ def asm_commande(ast, env):
                         mov rdi, [{dict_name}]
                         call set_in_dict
                         """
+
         elif type_expr == "double":
             return f"""{asm_expr}
                         mov rdi, format_flottant
@@ -452,7 +660,7 @@ def asm_commande(ast, env):
         return f"""
         {key_asm}
         {save_key}
-        mov rdi, [{dict_name}]
+        lea rdi, [{dict_name}]
         {restore_key}
         call delete_from_dict
         """
@@ -508,13 +716,13 @@ def asm_commande(ast, env):
         """
 
     if ast.data == "while":
-        test_type, test_asm = asm_expression(ast.children[0], env)
-        if test_type != "int":
+        test = asm_expression(ast.children[0], env)
+        if test[0] != "int":
             raise TypeError("La condition n'est pas un booléen")
 
         cmd = asm_commande(ast.children[1], env)
         cpt = next(compteur)
-        return f"""debut_{cpt}: {test_asm}
+        return f"""debut_{cpt}: {test[1]}
                     cmp rax, 0
                     jz fin_{cpt}
                     {cmd}
@@ -522,13 +730,13 @@ def asm_commande(ast, env):
                     fin_{cpt}:"""
 
     if ast.data == "if":
-        test_type, test_asm = asm_expression(ast.children[0], env)
-        if test_type != "int":
+        test = asm_expression(ast.children[0], env)
+        if test[0] != "int":
             raise TypeError("La condition n'est pas un booléen")
 
         cmd = asm_commande(ast.children[1], env)
         cpt = next(compteur)
-        return f"""{test_asm}
+        return f"""{test[1]}
                     cmp rax, 0
                     jz fin_{cpt}
                     {cmd}
@@ -555,23 +763,28 @@ def asm_liste_vars(ast) -> str:
             continue
             
         if type_var == "int":
-            res.append(f"""mov rdi, [argv]
+            res.append(
+                f"""mov rdi, [argv]
                             add rdi, {(i+1)*8}
                             call atoi
-                            mov [{nom_var}], rax""")
+                            mov [{nom_var}], rax"""
+            )
         if type_var == "double":
-            res.append(f"""mov rdi, [argv]
+            res.append(
+                f"""mov rdi, [argv]
                             add rdi, {(i+1)*8}
                             call atof
                             movsd [{nom_var}], xmm0""")
+
     return "\n".join(res) + "\n"
+
 
 def asm_decls_vars(ast):
     result = []
     for i in range(len(ast.children)):
         nom_var = ast.children[i].children[1].value
         if ast.children[i].children[0].value == "dict":
-            result.append(f"{nom_var} dq 0 ; dict {ast.children[i].children[2].value} -> {ast.children[i].children[3].value}")
+            result.append(f"{nom_var} dq 0 ; dict")
         else:
             result.append(f"{nom_var} dq 0 ; {ast.children[i].children[0].value}")
     return "\n".join(result) + "\n"
@@ -582,13 +795,17 @@ def pp_decl_vars(ast):
         nom_var = ast.children[i].children[1].value
         if ast.children[i].children[0].value == "dict":
             if len(ast.children[i].children) == 4:
-                result.append(f"dict {nom_var}<{ast.children[i].children[2].value},{ast.children[i].children[3].value}>;")
-            else:
-                result.append(f"dict {nom_var};")
+                result.append(f"dict {nom_var}<{ast.children[i].children[2].value},{pp_types(ast.children[i].children[3])}>;")
         else:
             result.append(f"{ast.children[i].children[0].value} {nom_var};")
     return "\n".join(result) + "\n"
 
+def pp_types(ast):
+    if ast.children[0] in ["dict"]:
+        return f"{ast.children[0]}<{ast.children[1].value},{pp_types(ast.children[2])}>"
+    else:
+        return ast.children[0].value
+    
 def pp_main(ast):
     vs = pp_liste_vars(ast.children[0])
     cmd = pp_commande(ast.children[1])
@@ -596,8 +813,11 @@ def pp_main(ast):
     return f"main({vs})\n    {cmd}\n    return ({ret});"
 
 
+
+
 def asm_main(ast):
     ast_vars = ast.children[0]
+
     env = construire_env(ast_vars)
     decls = asm_decls_vars(ast_vars)
     vs = asm_liste_vars(ast_vars)
@@ -605,8 +825,14 @@ def asm_main(ast):
 
     # Génération des constantes (const_float_0: dq 3.14)
     asm_consts = "\n".join(
-        f"{label}: dq {valeur[1]}" for valeur, label in constantes.items()
+        f"{label}: dq {valeur}" for valeur, label in constantes.items()
     )
+    if asm_consts:
+        decls += "\n" + asm_consts + "\n"
+
+    # Déclaration des labels temporaires pour les dict_literal
+    if temp_dict_labels:
+        decls += "\n" + "\n".join(f"{lbl} dq 0" for lbl in temp_dict_labels) + "\n"
 
     # On récupère juste le code asm de l'expression de retour (index 1 du tuple)
     type_ret, ret_asm = asm_expression(ast.children[2], env)
