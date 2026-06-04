@@ -99,6 +99,9 @@ def asm_expression(ast, env: dict[str, str]) -> tuple[str, str]:
                 return "double", f"movsd xmm0, [{nom}]\n"
             elif type_var=="str":
                 return "str", f"mov rax, [{nom}]\n"
+            
+            raise TypeError(f"type de variable inconnu : {type_var}")
+
 
         case "chaine":
             lbl = f"lit_{next(compteur)}"
