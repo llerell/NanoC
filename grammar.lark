@@ -1,0 +1,51 @@
+IDENTIFIER: /[a-zA-Z_][a-zA-Z_0-9]*/
+
+STRING: /"[^"]*"/
+
+CHAR: /'[^']'/
+
+OPBIN: /<=|>=|==|!=|[+\-*\/<>%&|^]/
+
+TYPE: "int"
+    | "double"
+    | "str"
+
+decl: TYPE IDENTIFIER
+
+vars: (decl ",")* decl -> liste_vars
+
+expression: IDENTIFIER -> variable
+    | SIGNED_INT -> entier
+    | SIGNED_FLOAT -> double
+    | STRING -> chaine
+    | CHAR -> caractere
+    | "(" expression ")" -> parenthese
+    | expression OPBIN expression -> binaire
+    | "len" "(" expression ")" -> length
+    | "charAt" "(" expression "," expression ")" -> charat
+    | "atoi" "(" expression ")" -> atoi
+    | "!" expression -> non_logique
+    | TYPE "(" expression ")" -> conversion
+
+commande: IDENTIFIER "=" expression ";" -> assignation
+    | commande* commande -> sequence
+    | "pass" -> nop
+    | "print" "(" expression ")" ";" -> print
+    | "if" "(" expression ")" "{" commande "}" -> block_if
+    | "while" "(" expression ")" "{" commande "}" -> block_while
+
+main: "main" "(" vars ")" "{" commande "return" expression ";" "}"
+
+start: main
+
+%import common.WS
+
+%import common.SIGNED_INT
+
+%import common.SIGNED_FLOAT
+
+%ignore WS
+
+%ignore /\/\/[^\n\r]*/
+
+%ignore /\/\*[\s\S]*?\*\//
