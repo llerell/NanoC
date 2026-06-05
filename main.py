@@ -1,6 +1,7 @@
 from lark import lark
 from TypeChecker import TypeChecker
 from PrettyPrinter import PrettyPrinter
+from CodeGenerator import CodeGenerator
 
 
 if __name__ == "__main__":
@@ -10,9 +11,12 @@ if __name__ == "__main__":
     #print(tree.pretty())
 
     pp = PrettyPrinter()
-    print(pp.visit(tree))
-
+    pp.visit(tree)
 
     tc = TypeChecker()
     tc.main(tree)
+
+    cgen = CodeGenerator(tc.node_types, tc.toutes_les_variables)
+    with open("resultat.asm", "w") as f:
+        f.write(cgen.main(tree))
 
