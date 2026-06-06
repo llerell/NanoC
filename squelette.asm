@@ -6,9 +6,6 @@ argv: dq 0
 format_entier: db "%lld", 10, 0
 format_flottant: db "%lf", 10, 0
 format_chaine: db "%s", 10, 0
-format_retour: db 10, 0 ; 10="\n", 0="\0"
-
-DECL_VARS
 
 section .rodata
 CONSTANTES
@@ -23,5 +20,5 @@ INIT_VARS
 COMMAND
 
 end_main:
-pop rbp
+leave
 ret

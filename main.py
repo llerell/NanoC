@@ -8,15 +8,12 @@ if __name__ == "__main__":
     grammaire = lark.Lark(open("grammar.lark").read(), start="main")
     src = open("source.c").read()
     tree = grammaire.parse(src)
-    #print(tree.pretty())
-
-    pp = PrettyPrinter()
-    pp.visit(tree)
+    print(tree.pretty())
 
     tc = TypeChecker()
     tc.main(tree)
 
-    cgen = CodeGenerator(tc.node_types, tc.toutes_les_variables)
+    cgen = CodeGenerator(tc.node_types, tc.var_offsets, tc.stack_size)
     with open("resultat.asm", "w") as f:
         f.write(cgen.main(tree))
 
