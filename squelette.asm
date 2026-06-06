@@ -3,8 +3,8 @@ default rel
 extern printf, atoi, atof, strlen, malloc, strcpy, strcat 
 section .data
 argv: dq 0
-format_entier: db "%lld", 10, 0
-format_flottant: db "%lf\n", 0
+format_entier: db "%lld", 0
+format_flottant: db "%lf", 0
 format_chaine: db "%s", 10, 0
 format_retour: db 10, 0 ; 10="\n", 0="\0"
 

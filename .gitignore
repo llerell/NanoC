@@ -3,3 +3,4 @@ a.out
 debut.*
 resultat.*
 .gitignore
+__pycache__
