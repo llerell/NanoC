@@ -168,38 +168,29 @@ class TypeChecker:
     def print(self, tree):
         type_expr = self.visit(tree.children[0])
 
-    def sequence(self, tree):
-        self.visit(tree.children[0])
-        self.visit(tree.children[1])
+    def bloc(self, tree):
+        # --- ENTRÉE DE SCOPE ---
+        self.current_scope = Scope(parent=self.current_scope)
+        
+        for child in tree.children:
+            self.visit(child)
+        
+        # --- SORTIE DE SCOPE ---
+        self.current_scope = self.current_scope.parent
     
     def block_while(self, tree):
         """Gestion d'un bloc 'while' ouvrant des accolades {}"""
         type_condition = self.visit(tree.children[0])
         if type_condition != "int":
             raise TypeError("La condition n'est pas un booléen")
-        
-        # --- ENTRÉE DE SCOPE ---
-        self.current_scope = Scope(parent=self.current_scope)
-        
-        self.visit(tree.children[1]) # Corps du if
-        
-        # --- SORTIE DE SCOPE ---
-        self.current_scope = self.current_scope.parent
+        self.visit(tree.children[1])
     
     def block_if(self, tree):
         """Gestion d'un bloc 'if' ouvrant des accolades {}"""
-        type_condition = self.visit(tree.children[0]) # Condition
+        type_condition = self.visit(tree.children[0])
         if type_condition != "int":
             raise TypeError("La condition n'est pas un booléen")
-        
-        # --- ENTRÉE DE SCOPE ---
-        self.current_scope = Scope(parent=self.current_scope)
-        
-        self.visit(tree.children[1]) # Corps du if
-        
-        # --- SORTIE DE SCOPE ---
-        # pyrefly: ignore [bad-assignment]
-        self.current_scope = self.current_scope.parent
+        self.visit(tree.children[1])
     
     def liste_vars(self, tree):
         for decl in tree.children:
@@ -208,8 +199,10 @@ class TypeChecker:
             self.current_scope.dcl(nom_var, type_var)
             self.toutes_les_variables.add(nom_var)
     
+    def ret(self, tree):
+        self.visit(tree.children[0])
+
     def main(self, tree):
 
         self.visit(tree.children[0])
         self.visit(tree.children[1])
-        self.visit(tree.children[2])

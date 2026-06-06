@@ -60,8 +60,8 @@ class PrettyPrinter:
     def print(self, tree):
         return f"print({self.visit(tree.children[0])});"
 
-    def sequence(self, tree):
-        return f"{self.visit(tree.children[0])}\n{self.visit(tree.children[1])}"
+    def bloc(self, tree):
+        return "\n".join(self.visit(child) for child in tree.children)
     
     def block_while(self, tree):
         return f"while ({self.visit(tree.children[0])}) {{\n{self.visit(tree.children[1])}\n}}"
@@ -72,6 +72,9 @@ class PrettyPrinter:
     def liste_vars(self, tree):
         return ", ".join((f"{v.children[0].value} {v.children[1].value}" for v in tree.children))
 
+    def ret(self, tree):
+        return f"return {self.visit(tree.children[0])};"
+
     def main(self, tree):
-        return f"main({self.visit(tree.children[0])}) {{\n{self.visit(tree.children[1])}\n    return {self.visit(tree.children[2])};\n}}"
+        return f"main({self.visit(tree.children[0])}) {self.visit(tree.children[1])}\n"
 

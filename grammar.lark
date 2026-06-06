@@ -6,11 +6,13 @@ CHAR: /'[^']'/
 
 OPBIN: /<=|>=|==|!=|[+\-*\/<>%&|^]/
 
-TYPE: "int"
+TYPE.2: "int"
     | "double"
     | "str"
 
 decl: TYPE IDENTIFIER
+
+bloc: "{" commande* "}"
 
 vars: (decl ",")* decl -> liste_vars
 
@@ -28,13 +30,13 @@ expression: IDENTIFIER -> variable
     | TYPE "(" expression ")" -> conversion
 
 commande: IDENTIFIER "=" expression ";" -> assignation
-    | commande* commande -> sequence
     | "pass" -> nop
+    | "return" expression ";" -> ret
     | "print" "(" expression ")" ";" -> print
-    | "if" "(" expression ")" "{" commande "}" -> block_if
-    | "while" "(" expression ")" "{" commande "}" -> block_while
+    | "if" "(" expression ")" bloc -> block_if
+    | "while" "(" expression ")" bloc -> block_while
 
-main: "main" "(" vars ")" "{" commande "return" expression ";" "}"
+main: "main" "(" vars ")" bloc
 
 start: main
 

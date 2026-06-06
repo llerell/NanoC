@@ -225,8 +225,8 @@ class CodeGenerator:
 
         raise TypeError(f"Impossible d'imprimer le type {type_expr}")
 
-    def sequence(self, tree):
-        return f"{self.visit(tree.children[0])}\n{self.visit(tree.children[1])}"
+    def bloc(self, tree):
+        return "\n".join(self.visit(child) for child in tree.children)
 
     def block_while(self, tree):
         test = self.visit(tree.children[0])
@@ -289,11 +289,16 @@ class CodeGenerator:
             for i in range(len(tree.children))
         )
 
+    def ret(self, tree):
+        asm_expr = self.visit(tree.children[0])
+        return f"""{asm_expr}
+                    jmp end_main
+                """
+
     def main(self, tree):
 
         parameters = self.visit(tree.children[0])
         commands = self.visit(tree.children[1])
-        ret = self.visit(tree.children[2])
 
         declaration = self._decls_vars(tree.children[0])
 
@@ -307,7 +312,6 @@ class CodeGenerator:
         squelette = squelette.replace("INIT_VARS", parameters)
         squelette = squelette.replace("CONSTANTES", asm_consts)
         squelette = squelette.replace("COMMAND", commands)
-        squelette = squelette.replace("RETURN", ret)
         squelette = squelette.replace("  ", "")
 
         return squelette
