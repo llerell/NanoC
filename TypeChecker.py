@@ -15,14 +15,16 @@ class Scope:
         """Cherche une variable ici, ou remonte chez les parents"""
         if nom in self.variables:
             return self.variables[nom]
-        if self.parent is not None:
-            return self.parent.lookup(nom)
-        raise NameError(f"Erreur : La variable '{nom}' n'est pas déclarée.")
+        return self.parent.lookup(nom)
 
 class MainScope(Scope):
     def __init__(self):
         self.variables = {}
 
+    def lookup(self, nom: str) -> str:
+        if nom in self.variables:
+            return self.variables[nom]
+        raise NameError(f"Erreur : La variable '{nom}' n'est pas déclarée.")
 
 class TypeChecker:
 
