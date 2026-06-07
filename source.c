@@ -11,7 +11,7 @@ main(int x){
         x = x - 1;
     }
     z = z / 3;
-    x = ! x & 1 | 0;
+    x = ! x & (1 | 0);
     print(a);
     // bonsoir
     return y;

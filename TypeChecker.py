@@ -129,6 +129,11 @@ class TypeChecker:
         self.node_types[tree] = "int"
         return "int"
 
+    def parenthese(self, tree):
+        type_expr = self.visit(tree.children[0])
+        self.node_types[tree] = type_expr
+        return type_expr
+
     def atoi(self, tree):
         type_expr = self.visit(tree.children[0])
         if type_expr != "str":

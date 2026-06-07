@@ -57,7 +57,6 @@ class CodeGenerator:
             label = self.constantes[(type_lit, valeur)]
 
         return f"mov rax, {label}\n"
-        
 
     def caractere(self, tree):
         return f"mov rax, {tree.children[0].value}\n"
@@ -174,6 +173,9 @@ class CodeGenerator:
                     movzx rax, al
                 """
 
+    def parenthese(self, tree):
+        return self.visit(tree.children[0])
+
     def atoi(self, tree):
         return f"""{self.visit(tree.children[0])}
                     mov rdi, rax
@@ -206,9 +208,9 @@ class CodeGenerator:
         offset = self.var_offsets[tree]
 
         if type_var == "int" or type_var == "str":
-            return f"{asm_expr}\nmov [rbp - {offset}], rax\n"
+            return f"{asm_expr}mov [rbp - {offset}], rax\n"
         elif type_var == "double":
-            return f"{asm_expr}\nmovsd [rbp - {offset}], xmm0\n"
+            return f"{asm_expr}movsd [rbp - {offset}], xmm0\n"
 
         raise TypeError(f"type de variable inconnu : {type_var}")
 
@@ -221,9 +223,9 @@ class CodeGenerator:
         offset = self.var_offsets[tree]
 
         if type_var == "int" or type_var == "str":
-            return f"{asm_expr}\nmov [rbp - {offset}], rax\n"
+            return f"{asm_expr}mov [rbp - {offset}], rax\n"
         elif type_var == "double":
-            return f"{asm_expr}\nmovsd [rbp - {offset}], xmm0\n"
+            return f"{asm_expr}movsd [rbp - {offset}], xmm0\n"
 
         raise TypeError(f"type de variable inconnu : {type_var}")
 
