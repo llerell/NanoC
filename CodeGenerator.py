@@ -343,7 +343,9 @@ class CodeGenerator:
             f"{label}: dq {valeur[1]}" for valeur, label in self.constantes.items()
         )
 
-        squelette = open("squelette.asm").read()
+        squelette = ""
+        with open("squelette.asm", "r") as f:
+            squelette = f.read()
 
         # Allocation globale de la pile pour toutes les variables du programme
         allocation_stack = (
