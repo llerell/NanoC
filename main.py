@@ -10,13 +10,13 @@ if __name__ == "__main__":
     tree = grammaire.parse(src)
     #print(tree.pretty())
 
-    pp = PrettyPrinter()
-    pp.visit(tree)
-
     tc = TypeChecker()
     tc.main(tree)
 
-    cgen = CodeGenerator(tc.node_types, tc.toutes_les_variables)
+    pp = PrettyPrinter()
+    pp.main(tree)
+
+    cgen = CodeGenerator(tc.node_types, tc.var_offsets, tc.stack_size)
     with open("resultat.asm", "w") as f:
         f.write(cgen.main(tree))
 
