@@ -31,11 +31,26 @@ class PrettyPrinter:
     def caractere(self, tree):
         return tree.children[0].value
 
+    def full_type(self, tree):
+
+        if len(tree.children) == 1:
+            return tree.children[0].value
+
+        key_type = tree.children[1].value
+        value_type = self.visit(tree.children[2])
+        return f"dict<{key_type},{value_type}>"
+
     def binaire(self, tree):
         return f"{self.visit(tree.children[0])} {tree.children[1].value} {self.visit(tree.children[2])}"
 
     def variable(self, tree):
         return tree.children[0].value
+
+    def dict_access(self, tree):
+        return f"{tree.children[0].value}[{self.visit(tree.children[1])}]"
+
+    def dict_literal(self, tree):
+        return f"{{{', '.join(f'{self.visit(k)}: {self.visit(v)}' for k, v in zip(tree.children[0::2], tree.children[1::2]))}}}"
 
     def conversion(self, tree):
         return f"{tree.children[0].value}({self.visit(tree.children[1])})"
@@ -63,8 +78,11 @@ class PrettyPrinter:
     def decl_assignation(self, tree):
         return f"{self.visit(tree.children[0])} = {self.visit(tree.children[1])};"
 
+    def assignation_dict(self, tree):
+        return f"{tree.children[0].value}[{self.visit(tree.children[1])}] = {self.visit(tree.children[2])};"
+
     def decl(self, tree):
-        return f"{tree.children[0].value} {tree.children[1].value}"
+        return f"{self.visit(tree.children[0])} {tree.children[1].value}"
 
     def nop(self, tree):
         return "pass"
