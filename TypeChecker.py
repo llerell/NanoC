@@ -100,14 +100,12 @@ class TypeChecker:
 
     def full_type(self, tree):
         """Transforme le nœud de grammaire 'full_type' en objet Type."""
-        # Cas 1 : Type primitif simple (ex: "int")
+
         if len(tree.children) == 1:
             return PrimitiveType(tree.children[0].value)
-        
-        # Cas 2 : Type composite (ex: dict<str, int>)
-        # D'après ta grammaire: COMPOSITE_TYPE "<" PRIMITIVE_TYPE "," full_type ">"
+
         key_type = PrimitiveType(tree.children[1].value)
-        value_type = self.visit(tree.children[2]) # Appel récursif pour les dictionnaires imbriqués
+        value_type = self.visit(tree.children[2])
         return DictType(key_type, value_type)
 
     def binaire(self, tree):
@@ -120,16 +118,13 @@ class TypeChecker:
             return type_g
 
         if type_g == PrimitiveType("int") and type_d == PrimitiveType("double"):
-            # On crée un faux nœud de conversion pour le fils gauche : double(expression)
             noeud_cast = Tree("conversion", [Token("TYPE", "double"), tree.children[0]])
-            # On remplace le fils gauche dans l'arbre par ce nouveau nœud
             tree.children[0] = noeud_cast
 
             self.node_types[noeud_cast] = PrimitiveType("double")
             self.node_types[tree] = PrimitiveType("double")
             return PrimitiveType("double")
 
-        # Cas 3 : double + int -> On promeut le int droit en double
         if type_g == PrimitiveType("double") and type_d == PrimitiveType("int"):
             noeud_cast = Tree("conversion", [Token("TYPE", "double"), tree.children[2]])
             tree.children[2] = noeud_cast
@@ -138,18 +133,16 @@ class TypeChecker:
             self.node_types[tree] = PrimitiveType("double")
             return PrimitiveType("double")
 
-        # Autres cas non supportés (ex: str + int)
         raise TypeError(f"Opération {op} impossible entre {type_g} et {type_d}")
 
     def variable(self, tree):
         """Utilisation d'une variable (ex: rax = x)"""
         nom_var = tree.children[0].value
 
-        # lookup va automatiquement chercher dans le scope courant, ou remonter si besoin
         type_var, offset = self.current_scope.lookup(nom_var)
 
         self.node_types[tree] = type_var
-        self.var_offsets[tree] = offset  # On lie ce nœud d'utilisation à son offset
+        self.var_offsets[tree] = offset
         return type_var
 
     def dict_access(self, tree):
@@ -162,8 +155,9 @@ class TypeChecker:
             raise TypeError(f"La variable '{nom_var}' n'est pas un dictionnaire.")
 
         if type_var.key_type != type_expr:
-            raise TypeError(f"La clé doit être de type {type_var.key_type.name}, pas {type_expr.name}")
-        
+            raise TypeError(
+                f"La clé doit être de type {type_var.key_type.name}, pas {type_expr.name}"
+            )
 
         self.node_types[tree] = type_var.value_type
         self.var_offsets[tree] = offset
@@ -270,9 +264,11 @@ class TypeChecker:
 
         if lhs_type.key_type != key_type:
             raise TypeError(f"Type de clé invalide. Attendu: {lhs_type.key_type.name}")
-            
+
         if lhs_type.value_type != rhs_type:
-            raise TypeError(f"Type de valeur invalide. Attendu: {lhs_type.value_type.name if isinstance(lhs_type.value_type, PrimitiveType) else 'dictionnaire'}")
+            raise TypeError(
+                f"Type de valeur invalide. Attendu: {lhs_type.value_type.name if isinstance(lhs_type.value_type, PrimitiveType) else 'dictionnaire'}"
+            )
 
         self.var_offsets[tree] = offset
 
