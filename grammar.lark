@@ -6,11 +6,12 @@ CHAR: /'[^']'/
 
 OPBIN: /<=|>=|==|!=|[+\-*\/<>%&|^]/
 
-TYPE.2: "int"
-    | "double"
-    | "str"
+PRIMITIVE_TYPE : "int" | "double" | "str"
+COMPOSITE_TYPE : "dict"
+full_type : PRIMITIVE_TYPE | COMPOSITE_TYPE "<" PRIMITIVE_TYPE ","  full_type ">"
+decl : full_type IDENTIFIER
 
-decl: TYPE IDENTIFIER
+
 
 bloc: "{" commande* "}"
 
@@ -23,11 +24,14 @@ expression: IDENTIFIER -> variable
     | CHAR -> caractere
     | "(" expression ")" -> parenthese
     | expression OPBIN expression -> binaire
+    | IDENTIFIER "[" expression "]" -> dict_access
     | "len" "(" expression ")" -> length
     | "charAt" "(" expression "," expression ")" -> charat
     | "atoi" "(" expression ")" -> atoi
     | "!" expression -> non_logique
-    | TYPE "(" expression ")" -> conversion
+    | PRIMITIVE_TYPE "(" expression ")" -> conversion
+    | "{" (expression ":" expression ",")* expression ":" expression "}" -> dict_literal
+
 
 commande: IDENTIFIER "=" expression ";" -> assignation
     | decl "=" expression ";" -> decl_assignation
@@ -36,6 +40,9 @@ commande: IDENTIFIER "=" expression ";" -> assignation
     | "print" "(" expression ")" ";" -> print
     | "if" "(" expression ")" bloc -> block_if
     | "while" "(" expression ")" bloc -> block_while
+    | IDENTIFIER "[" expression "]" "=" expression ";" -> assignation_dict
+    //| "foreach" "(" IDENTIFIER "in" IDENTIFIER ")" "{" commande "}" -> foreach_dict
+
 
 main: "main" "(" parameters ")" bloc
 
