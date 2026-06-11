@@ -1,10 +1,14 @@
 from lark import Tree
+from TypeChecker import PrimitiveType, DictType, Type
 
 
 class CodeGenerator:
 
     def __init__(
-        self, node_types: dict[Tree, str], var_offsets: dict[Tree, int], stack_size: int
+        self,
+        node_types: dict[Tree, Type],
+        var_offsets: dict[Tree, int],
+        stack_size: int,
     ):
         self.compteur = iter(range(1_000_000))
         self.constantes = {}
@@ -26,6 +30,40 @@ class CodeGenerator:
             )
 
         return methode(node)
+    
+    # HELPERS
+
+    def _push_type(self, ast_type):
+        """Génère l'assembleur pour empiler une valeur selon son type."""
+        if ast_type == PrimitiveType("double"):
+            return "sub rsp, 8\nmovsd [rsp], xmm0"
+        return "push rax"
+
+    def _pop_type(self, ast_type, target_reg):
+        """Génère l'assembleur pour dépiler une valeur vers un registre cible."""
+        if ast_type == PrimitiveType("double"):
+            # Même pour les flottants, set_in_dict attend les bits dans les registres généraux (rsi, rdx)
+            return f"movsd xmm0, [rsp]\nadd rsp, 8\nmovq {target_reg}, xmm0"
+        return f"pop {target_reg}"
+    
+    def _mov_type(self, ast_type, dest, src):
+        """
+        Génère l'instruction de déplacement appropriée selon le type de donnée.
+        """
+        if ast_type == PrimitiveType("double"):
+            return f"movsd {dest}, {src}"
+            
+        # Anticipation pour le type char (optionnel pour l'instant)
+        elif ast_type == PrimitiveType("char"):
+            # Si on lit depuis la mémoire vers un registre 64-bit, on étend avec des zéros
+            if dest.startswith("r") and ("[" in src):
+                return f"movzx {dest}, byte {src}"
+            # Si on écrit un registre vers la mémoire, on utilise la version 8-bit du registre (ex: al pour rax)
+            elif "[" in dest and src == "rax":
+                return f"mov {dest}, al" 
+                
+        # Comportement par défaut (int, str, pointeurs de dict)
+        return f"mov {dest}, {src}"
 
     # EXPRESSIONS
 
@@ -60,6 +98,9 @@ class CodeGenerator:
 
     def caractere(self, tree):
         return f"mov rax, {tree.children[0].value}\n"
+
+    def full_type(self, tree):
+        raise NotImplementedError("full_type non implémenté")
 
     def binaire(self, tree):
         type_g = self.node_types[tree.children[0]]
@@ -140,12 +181,65 @@ class CodeGenerator:
         type_var = self.node_types[tree]
         offset = self.var_offsets[tree]
 
-        if type_var == "int" or type_var == "str":
+        if type_var in (PrimitiveType("int"), PrimitiveType("str")) or isinstance(
+            type_var, DictType
+        ):
             return f"mov rax, [rbp - {offset}]\n"
         elif type_var == "double":
             return f"movsd xmm0, [rbp - {offset}]\n"
 
         raise TypeError(f"type de variable inconnu : {type_var}")
+
+    def dict_access(self, tree):
+        key_asm = self.visit(tree.children[1])
+
+        offset = self.var_offsets[tree]
+
+        return f"""{key_asm}
+                    mov rsi, rax
+                    mov rdi, [rbp - {offset}]
+                    call get_from_dict
+                """
+
+    def dict_literal(self, tree):
+        dict_type = self.node_types[tree]
+        assert isinstance(dict_type, DictType)
+
+        key_type = dict_type.key_type
+        val_type = dict_type.value_type
+
+        # Initialisation de l'adresse de tête du dictionnaire (NULL) sur la pile
+        asm = [
+            "xor rax, rax",
+            "push rax"
+        ]
+
+        for i in range(0, len(tree.children) - 1, 2):
+            key_node = tree.children[i]
+            val_node = tree.children[i+1]
+
+            # 1. Évaluer et empiler la valeur
+            asm.append(self.visit(val_node))
+            asm.append(self._push_type(val_type))
+
+            # 2. Évaluer et empiler la clé
+            asm.append(self.visit(key_node))
+            asm.append(self._push_type(key_type))
+
+            # 3. Dépiler dans les registres d'arguments (rsi, rdx)
+            asm.append(self._pop_type(key_type, "rsi"))
+            asm.append(self._pop_type(val_type, "rdx"))
+
+            # 4. Insertion dans le dictionnaire
+            # L'adresse de la tête (le NULL initial ou la tête mise à jour) est pointée par rsp
+            asm.append("lea rdi, [rsp]") 
+            asm.append("call set_in_dict")
+            
+        # À la fin, on dépile l'adresse de la tête du dictionnaire dans rax
+        # (C'est ce qui sera affecté à la variable lors du `decl_assignation`)
+        asm.append("pop rax\n")
+        
+        return "\n".join(asm)
 
     def conversion(self, tree):
         type_cible = tree.children[0].value
@@ -207,27 +301,60 @@ class CodeGenerator:
         asm_expr = self.visit(tree.children[1])
         offset = self.var_offsets[tree]
 
-        if type_var == "int" or type_var == "str":
+        if type_var in (PrimitiveType("int"), PrimitiveType("str")) or isinstance(
+            type_var, DictType
+        ):
             return f"{asm_expr}mov [rbp - {offset}], rax\n"
-        elif type_var == "double":
+        elif type_var == PrimitiveType("double"):
             return f"{asm_expr}movsd [rbp - {offset}], xmm0\n"
 
         raise TypeError(f"type de variable inconnu : {type_var}")
 
     def decl_assignation(self, tree):
         # Gère l'écriture lors d'une déclaration à la volée avec assignation (ex: int y = 10;)
-        decl_node = tree.children[0]
-        type_var = decl_node.children[0].value  # On récupère le type dans le sous-nœud
         asm_expr = self.visit(tree.children[1])  # L'expression est bien à l'index 1
 
+        type_var = self.node_types[tree]
         offset = self.var_offsets[tree]
 
-        if type_var == "int" or type_var == "str":
+        if type_var in (PrimitiveType("int"), PrimitiveType("str")) or isinstance(
+            type_var, DictType
+        ):
             return f"{asm_expr}mov [rbp - {offset}], rax\n"
-        elif type_var == "double":
+        elif type_var == PrimitiveType("double"):
             return f"{asm_expr}movsd [rbp - {offset}], xmm0\n"
 
         raise TypeError(f"type de variable inconnu : {type_var}")
+    
+    def assignation_dict(self, tree):
+        offset = self.var_offsets[tree]
+        
+        key_node = tree.children[1]
+        val_node = tree.children[2]
+        
+        # Récupération des types définis par le TypeChecker
+        key_type = self.node_types[key_node]
+        val_type = self.node_types[val_node]
+
+        asm = []
+        
+        # 1. Évaluer et sauvegarder la valeur sur la pile
+        asm.append(self.visit(val_node))
+        asm.append(self._push_type(val_type))
+        
+        # 2. Évaluer et sauvegarder la clé sur la pile
+        asm.append(self.visit(key_node))
+        asm.append(self._push_type(key_type))
+        
+        # 3. Préparer les registres pour l'appel à set_in_dict
+        asm.append(f"lea rdi, [rbp - {offset}]")   # rdi = adresse de la variable dictionnaire
+        asm.append(self._pop_type(key_type, "rsi")) # rsi = la clé qu'on vient de dépiler
+        asm.append(self._pop_type(val_type, "rdx")) # rdx = la valeur qu'on dépile ensuite
+        
+        # 4. Appel de la fonction de la bibliothèque standard
+        asm.append("call set_in_dict\n")
+        
+        return "\n".join(asm)
 
     def nop(self, tree):
         return "nop\n"
@@ -237,7 +364,7 @@ class CodeGenerator:
         type_expr = self.node_types[tree.children[0]]
         asm_expr = self.visit(tree.children[0])
 
-        if type_expr == "int":
+        if type_expr == PrimitiveType("int"):
             return f"""{asm_expr}
                         mov rdi, format_entier
                         mov rsi, rax
@@ -245,13 +372,13 @@ class CodeGenerator:
                         call printf
                         """
 
-        elif type_expr == "double":
+        elif type_expr == PrimitiveType("double"):
             return f"""{asm_expr}
                         mov rdi, format_flottant
                         mov rax, 1
                         call printf
                     """
-        elif type_expr == "str":
+        elif type_expr == PrimitiveType("str"):
             return f"""{asm_expr}
                         mov rdi, format_chaine
                         mov rsi, rax
@@ -344,6 +471,7 @@ class CodeGenerator:
         )
 
         squelette = open("squelette.asm").read()
+        dict_squelette = open("dict_squelette.asm").read()
 
         # Allocation globale de la pile pour toutes les variables du programme
         allocation_stack = (
@@ -351,6 +479,7 @@ class CodeGenerator:
         )
 
         squelette = squelette.replace("INIT_VARS", allocation_stack + parameters)
+        squelette = squelette.replace("DICT", dict_squelette)
         squelette = squelette.replace("CONSTANTES", asm_consts)
         squelette = squelette.replace("COMMAND", commands)
         squelette = squelette.replace("  ", "")

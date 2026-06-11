@@ -234,12 +234,13 @@ class TypeChecker:
         self.current_scope.dcl(nom_var, type_var, offset)
         type_expr = self.visit(tree.children[1])
 
-        self.var_offsets[tree] = offset
-
         if type_var != type_expr:
             raise TypeError(
                 f"Impossible d'assigner {type_expr} à {nom_var} ({type_var})"
             )
+
+        self.var_offsets[tree] = offset
+        self.node_types[tree] = type_expr
 
         return type_var
 
@@ -271,6 +272,7 @@ class TypeChecker:
             )
 
         self.var_offsets[tree] = offset
+        self.node_types[tree] = lhs_type
 
     def nop(self, tree):
         pass

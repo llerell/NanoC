@@ -7,6 +7,10 @@ main() {
     
     mon_dict[40] = 400;
     mon_dict[20] = 222;
+
+    print(mon_dict[20]);
+    print(mon_dict[30]);
+    print(mon_dict[40]);
         
     // dico2[0] = {10:100};
     // dico2[1] = mon_dict;

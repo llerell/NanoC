@@ -5,10 +5,15 @@ section .data
 argv: dq 0
 format_entier: db "%lld", 10, 0
 format_flottant: db "%lf", 10, 0
-DECL_VARS
+format_chaine: db "%s", 10, 0
+
+section .rodata
+CONSTANTES
+
 global main
 section .text
 DICT
+
 main:
 push rbp
 mov rbp, rsp

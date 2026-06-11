@@ -42,27 +42,21 @@ set_in_dict:
     jmp .fin_set
 
 .cle_non_trouvee:
-    ; 2. Allocation d'un nouveau nœud (24 octets) via sys_brk
-    ; Demande de la position actuelle du break
-    mov rax, 12             ; syscall: sys_brk
-    xor rdi, rdi            ; 0 pour obtenir l'adresse actuelle
-    syscall
+    ; 2. Allocation via malloc (24 octets)
+    mov rdi, 24
     
-    mov rbx, rax            ; rbx = adresse du nouveau nœud
+    mov r15, rsp
+    and rsp, -16
+    call malloc
+    mov rsp, r15
     
-    ; Calcul du nouveau break (adresse actuelle + 24 octets)
-    mov rdi, rax
-    add rdi, 24
-    mov rax, 12             ; syscall: sys_brk
-    syscall                 ; rax contient maintenant la nouvelle limite si succès
-
-    ; 3. Remplissage du nouveau nœud
+    mov rbx, rax
+    
     mov rax, [r12]          ; rax = ancien premier nœud
     mov [rbx], rax          ; nouveau_noeud->suivant = ancien premier nœud
     mov [rbx + 8], r13      ; nouveau_noeud->cle = clé
     mov [rbx + 16], r14     ; nouveau_noeud->valeur = valeur
 
-    ; 4. Mettre à jour la tête du dictionnaire
     mov [r12], rbx
 
 .fin_set:
