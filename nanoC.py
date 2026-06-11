@@ -4,9 +4,6 @@ import lark
 grammaire = lark.Lark(
     r"""
 IDENTIFIER: /[a-zA-Z_][a-zA-Z_0-9]*/
-STRING : /"[^"]*"/
-CHAR : /'[^']'/
-decl : TYPE IDENTIFIER
 OPBIN: /<=|>=|==|!=|[+\-*\/<>%&|^]/
 PRIMITIVE_TYPE : "int" | "double" | "str"
 COMPOSITE_TYPE : "dict"
@@ -19,13 +16,6 @@ expression : IDENTIFIER -> variable
            | SIGNED_FLOAT -> double
            | "(" expression ")" -> expression
            | expression OPBIN expression -> binaire
-           | STRING -> chaine
-           | CHAR -> caractere
-           | "len" "(" expression ")" -> len
-           | "charAt" "(" expression "," expression ")" -> charat
-           | "atoi" "(" expression ")" -> atoi
-           | "!" expression -> non_logique
-           | TYPE "(" expression ")" -> conversion
            | IDENTIFIER "[" expression "]" -> dict_access
            | "!" expression -> non_logique
            | PRIMITIVE_TYPE "(" expression ")" -> conversion
@@ -77,12 +67,6 @@ def construire_env(ast_vars) -> dict[str, str]:
 def pp_expression(ast):
     if ast.data in ("variable", "entier", "flottant", "chaine", "caractere"):
         return ast.children[0].value
-    if ast.data=="len":
-        return f"len({pp_expression(ast.children[0])})"
-    if ast.data=="atoi":
-        return f"atoi({pp_expression(ast.children[0])})"
-    if ast.data=="charAt":
-        return f"charat({pp_expression(ast.children[0])}, {pp_expression(ast.children[1])})"
     if ast.data == "binaire":
         eg = f"{pp_expression(ast.children[0])}"
         op = ast.children[1].value
@@ -807,10 +791,13 @@ def pp_types(ast):
         return ast.children[0].value
     
 def pp_main(ast):
+    decls = pp_decl_vars(ast.children[0])
     vs = pp_liste_vars(ast.children[0])
     cmd = pp_commande(ast.children[1])
     ret = pp_expression(ast.children[2])
-    return f"main({vs})\n    {cmd}\n    return ({ret});"
+    return f"""main({vs}) {{\n{decls}\n{cmd}\nreturn {ret};\n}}\n"""
+
+
 
 
 
@@ -853,5 +840,7 @@ def asm_main(ast):
 if __name__ == "__main__":
     src = open("source.c").read()
     t = grammaire.parse(src)
+    with open("pretty.txt",  'w') as f:
+        f.write(pp_main(t)) 
     with open("resultat.asm", "w") as f:
         f.write(asm_main(t))
