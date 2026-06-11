@@ -94,10 +94,6 @@ class TypeChecker:
         self.node_types[tree] = PrimitiveType("str")
         return PrimitiveType("str")
 
-    def caractere(self, tree):
-        self.node_types[tree] = PrimitiveType("int")
-        return PrimitiveType("int")
-
     def full_type(self, tree):
         """Transforme le nœud de grammaire 'full_type' en objet Type."""
 

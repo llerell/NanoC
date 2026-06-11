@@ -85,9 +85,6 @@ class CodeGenerator:
 
         return f"mov rax, {label}\n"
 
-    def caractere(self, tree):
-        return f"mov rax, {tree.children[0].value}\n"
-
     def full_type(self, tree):
         raise NotImplementedError("full_type non implémenté")
 
