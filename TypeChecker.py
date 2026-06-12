@@ -12,6 +12,9 @@ class PrimitiveType(Type):
     def __eq__(self, other):
         return isinstance(other, PrimitiveType) and self.name == other.name
 
+    def __str__(self):
+        return self.name
+
 
 class DictType(Type):
     def __init__(self, key_type: PrimitiveType, value_type: Type):
@@ -24,6 +27,9 @@ class DictType(Type):
             and self.key_type == other.key_type
             and self.value_type == other.value_type
         )
+
+    def __str__(self):
+        return f"dict<{self.key_type},{self.value_type}>"
 
 
 class Scope:
@@ -161,6 +167,10 @@ class TypeChecker:
         return type_var.value_type
 
     def dict_literal(self, tree):
+
+        if len(tree.children) == 0:
+            return None
+
         type_cle = self.visit(tree.children[0])
         type_valeur = self.visit(tree.children[1])
 
@@ -230,6 +240,10 @@ class TypeChecker:
         self.current_scope.dcl(nom_var, type_var, offset)
         type_expr = self.visit(tree.children[1])
 
+        if type_expr is None:
+            type_expr = type_var
+            self.node_types[tree.children[1]] = type_expr
+
         if type_var != type_expr:
             raise TypeError(
                 f"Impossible d'assigner {type_expr} à {nom_var} ({type_var})"
@@ -246,6 +260,10 @@ class TypeChecker:
 
         rhs_type = self.visit(tree.children[1])
         self.var_offsets[tree] = offset
+
+        if rhs_type is None:
+            rhs_type = lhs_type
+            self.node_types[tree.children[1]] = rhs_type
 
         if lhs_type != rhs_type:
             raise TypeError(f"Impossible d'assigner {rhs_type} à {lhs_type}")

@@ -3,7 +3,9 @@ main() {
     // oui ça fonctionne
     int v = 0;
     int n = 0;
-    dict<int,int> mon_dict = {10: 100, 20: 200, 30: 300};
+    dict<int,int> mon_dict = {};
+
+    mon_dict = {};
     
     mon_dict[40] = 400 + 3 / 20 - 8 + 2 * 2;
     mon_dict[20] = !222 & 1 | 2;

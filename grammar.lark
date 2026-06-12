@@ -31,7 +31,7 @@ expression: IDENTIFIER -> variable
     | "atoi" "(" expression ")" -> atoi
     | "!" expression -> non_logique
     | PRIMITIVE_TYPE "(" expression ")" -> conversion
-    | "{" (expression ":" expression ",")* expression ":" expression "}" -> dict_literal
+    | "{" ((expression ":" expression ",")* expression ":" expression)? "}" -> dict_literal
 
 commande: IDENTIFIER "=" expression ";" -> assignation
     | decl "=" expression ";" -> decl_assignation
