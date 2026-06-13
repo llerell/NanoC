@@ -54,35 +54,36 @@ class CodeGenerator:
             return f"movsd {dest}, {src}"
         return f"mov {dest}, {src}"
 
+    def _get_const_label(self, type_lit, valeur):
+        """
+        Renvoie le label de la constante ; si celle-ci n'est pas encore définie,
+        on l'ajoute à la liste des constantes.
+        """
+        if (type_lit, valeur) not in self.constantes:
+            label = f"const_{len(self.constantes)}"
+            self.constantes[(type_lit, valeur)] = label
+        return self.constantes[(type_lit, valeur)]
+
     # EXPRESSIONS
 
     def entier(self, tree):
+        """
+        Un entier litéral
+        """
         return f"mov rax, {tree.children[0].value}\n"
 
     def double(self, tree):
-        type_lit = tree.data
-        valeur = tree.children[0].value
-
-        # vérification de la présence de la constante
-        if (type_lit, valeur) not in self.constantes:
-            label = f"const_{len(self.constantes)}"
-            self.constantes[(type_lit, valeur)] = label
-        else:
-            label = self.constantes[(type_lit, valeur)]
-
+        """
+        Un double litéral
+        """
+        label = self._get_const_label(tree.data, tree.children[0].value)
         return f"movsd xmm0, [{label}]\n"
 
     def chaine(self, tree):
-        type_lit = tree.data
-        valeur = tree.children[0].value
-
-        # vérification de la présence de la constante
-        if (type_lit, valeur) not in self.constantes:
-            label = f"const_{len(self.constantes)}"
-            self.constantes[(type_lit, valeur)] = label
-        else:
-            label = self.constantes[(type_lit, valeur)]
-
+        """
+        Une chaîne de caractères litérale
+        """
+        label = self._get_const_label(tree.data, tree.children[0].value)
         return f"mov rax, {label}\n"
 
     def full_type(self, tree):

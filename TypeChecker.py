@@ -31,6 +31,9 @@ class DictType(Type):
     def __str__(self):
         return f"dict<{self.key_type},{self.value_type}>"
 
+TYPE_INT = PrimitiveType("int")
+TYPE_DOUBLE = PrimitiveType("double")
+TYPE_STR = PrimitiveType("str")
 
 class Scope:
     def __init__(self, parent: Scope):
@@ -89,16 +92,16 @@ class TypeChecker:
     ### EXPRESSIONS
 
     def entier(self, tree):
-        self.node_types[tree] = PrimitiveType("int")
-        return PrimitiveType("int")
+        self.node_types[tree] = TYPE_INT
+        return TYPE_INT
 
     def double(self, tree):
-        self.node_types[tree] = PrimitiveType("double")
-        return PrimitiveType("double")
+        self.node_types[tree] = TYPE_DOUBLE
+        return TYPE_DOUBLE
 
     def chaine(self, tree):
-        self.node_types[tree] = PrimitiveType("str")
-        return PrimitiveType("str")
+        self.node_types[tree] = TYPE_STR
+        return TYPE_STR
 
     def full_type(self, tree):
         """Transforme le nœud de grammaire 'full_type' en objet Type."""
@@ -119,21 +122,21 @@ class TypeChecker:
             self.node_types[tree] = type_g
             return type_g
 
-        if type_g == PrimitiveType("int") and type_d == PrimitiveType("double"):
+        if type_g == TYPE_INT and type_d == TYPE_DOUBLE:
             noeud_cast = Tree("conversion", [Token("TYPE", "double"), tree.children[0]])
             tree.children[0] = noeud_cast
 
-            self.node_types[noeud_cast] = PrimitiveType("double")
-            self.node_types[tree] = PrimitiveType("double")
-            return PrimitiveType("double")
+            self.node_types[noeud_cast] = TYPE_DOUBLE
+            self.node_types[tree] = TYPE_DOUBLE
+            return TYPE_DOUBLE
 
-        if type_g == PrimitiveType("double") and type_d == PrimitiveType("int"):
+        if type_g == TYPE_DOUBLE and type_d == TYPE_INT:
             noeud_cast = Tree("conversion", [Token("TYPE", "double"), tree.children[2]])
             tree.children[2] = noeud_cast
 
-            self.node_types[noeud_cast] = PrimitiveType("double")
-            self.node_types[tree] = PrimitiveType("double")
-            return PrimitiveType("double")
+            self.node_types[noeud_cast] = TYPE_DOUBLE
+            self.node_types[tree] = TYPE_DOUBLE
+            return TYPE_DOUBLE
 
         raise TypeError(f"Opération {op} impossible entre {type_g} et {type_d}")
 
@@ -195,10 +198,10 @@ class TypeChecker:
 
     def non_logique(self, tree):
         type_expr = self.visit(tree.children[0])
-        if type_expr != PrimitiveType("int"):
+        if type_expr != TYPE_INT:
             raise TypeError("Le non logique ne s'applique qu'aux variables de type int")
-        self.node_types[tree] = PrimitiveType("int")
-        return PrimitiveType("int")
+        self.node_types[tree] = TYPE_INT
+        return TYPE_INT
 
     def parenthese(self, tree):
         type_expr = self.visit(tree.children[0])
@@ -207,24 +210,24 @@ class TypeChecker:
 
     def atoi(self, tree):
         type_expr = self.visit(tree.children[0])
-        if type_expr != PrimitiveType("str"):
+        if type_expr != TYPE_STR:
             raise TypeError("L'atoi ne s'applique qu'aux variables de type str")
-        self.node_types[tree] = PrimitiveType("int")
-        return PrimitiveType("int")
+        self.node_types[tree] = TYPE_INT
+        return TYPE_INT
 
     def length(self, tree):
         type_expr = self.visit(tree.children[0])
-        if type_expr != PrimitiveType("str"):
+        if type_expr != TYPE_STR:
             raise TypeError("La longueur ne s'applique qu'aux variables de type str")
-        self.node_types[tree] = PrimitiveType("int")
-        return PrimitiveType("int")
+        self.node_types[tree] = TYPE_INT
+        return TYPE_INT
 
     def charat(self, tree):
         type_expr = self.visit(tree.children[0])
-        if type_expr != PrimitiveType("str"):
+        if type_expr != TYPE_STR:
             raise TypeError("Le charat ne s'applique qu'aux variables de type str")
-        self.node_types[tree] = PrimitiveType("int")
-        return PrimitiveType("int")
+        self.node_types[tree] = TYPE_INT
+        return TYPE_INT
 
     ### COMMANDES
 
@@ -307,14 +310,14 @@ class TypeChecker:
     def block_while(self, tree):
         """Gestion d'un bloc 'while' ouvrant des accolades {}"""
         type_condition = self.visit(tree.children[0])
-        if type_condition != PrimitiveType("int"):
+        if type_condition != TYPE_INT:
             raise TypeError("La condition n'est pas un booléen")
         self.visit(tree.children[1])
 
     def block_if(self, tree):
         """Gestion d'un bloc 'if' ouvrant des accolades {}"""
         type_condition = self.visit(tree.children[0])
-        if type_condition != PrimitiveType("int"):
+        if type_condition != TYPE_INT:
             raise TypeError("La condition n'est pas un booléen")
         self.visit(tree.children[1])
 
