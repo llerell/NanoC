@@ -12,6 +12,8 @@ CONSTANTES
 
 global main
 section .text
+DICT
+
 main:
 push rbp
 mov rbp, rsp
