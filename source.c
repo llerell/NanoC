@@ -12,6 +12,9 @@ main() {
     print(mon_dict[30]);
     print(mon_dict[40]);
 
+    del mon_dict[20];
+    print(mon_dict[20]);
+
     dict<int,dict<int,int>> dico2 = {2: {10:100}};
 
         

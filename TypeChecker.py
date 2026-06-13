@@ -354,6 +354,20 @@ class TypeChecker:
         
         # 7. Sortie du scope (destruction des variables de boucle)
         self.current_scope = self.current_scope.parent
+    
+    def del_key(self, tree):
+        dict_name = tree.children[0].value
+        dict_type, dict_offset = self.current_scope.lookup(dict_name)
+
+        if not isinstance(dict_type, DictType):
+            raise TypeError(f"La variable doit être un dictionnaire (reçu {dict_type})")
+
+        key_type = self.visit(tree.children[1])
+        if key_type != dict_type.key_type:
+            raise TypeError(f"Type de clé invalide. Attendu: {dict_type.key_type.name}")
+
+        self.var_offsets[tree] = dict_offset
+        self.node_types[tree] = dict_type
         
     def parameters(self, tree):
         # Pour les arguments de la fonction main

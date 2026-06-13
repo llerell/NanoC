@@ -446,6 +446,21 @@ class CodeGenerator:
         
         return "\n".join(asm) + "\n"
 
+    def del_key(self, tree):
+        dict_offset = self.var_offsets[tree]
+        dict_type = self.node_types[tree]
+        assert isinstance(dict_type, DictType)
+        key_type = dict_type.key_type
+        
+        res_asm = [self.visit(tree.children[1])]
+
+        res_asm.append(self._push_type(key_type))
+        res_asm.append(f"mov rdi, [rbp - {dict_offset}]")
+        res_asm.append(self._pop_type(key_type, "rsi"))
+        res_asm.append("call delete_from_dict")
+
+        return "\n".join(res_asm) + "\n"
+
     def parameters(self, tree):
         res = []
         for i in range(len(tree.children)):

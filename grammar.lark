@@ -42,6 +42,7 @@ commande: IDENTIFIER "=" expression ";" -> assignation
     | "while" "(" expression ")" bloc -> block_while
     | IDENTIFIER "[" expression "]" "=" expression ";" -> assignation_dict
     | "foreach" "(" IDENTIFIER "in" IDENTIFIER ")" bloc -> foreach
+    | "del" IDENTIFIER "[" expression "]" ";" -> del_key
 
 main: "main" "(" parameters ")" bloc
 

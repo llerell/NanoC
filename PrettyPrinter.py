@@ -99,6 +99,9 @@ class PrettyPrinter:
     def foreach(self, tree):
         return f"foreach({self.visit(tree.children[0])} in {self.visit(tree.children[1])})\n{self.visit(tree.children[2])}\n"
 
+    def del_key(self, tree):
+        return f"del {tree.children[0].value}[{self.visit(tree.children[1])}]"
+
     def parameters(self, tree):
         return ", ".join((self.visit(v) for v in tree.children))
 
