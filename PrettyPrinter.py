@@ -28,7 +28,7 @@ class PrettyPrinter:
     def chaine(self, tree):
         return tree.children[0].value
 
-    def full_type(self, tree):
+    def nested_type(self, tree):
 
         if len(tree.children) == 1:
             return tree.children[0].value

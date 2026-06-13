@@ -1,18 +1,10 @@
-; ==============================================================================
-; init_dict
-; Entrée: Rien
-; Sortie: rax = Pointeur vers le dictionnaire initialisé (ici un pointeur NULL)
-; ==============================================================================
 init_dict:
-    xor rax, rax            ; Un dictionnaire vide est simplement représenté par un pointeur NULL (0)
+    xor rax, rax
     ret
 
-; ==============================================================================
-; set_in_dict
 ; Entrée: rdi = adresse du pointeur du dict (Attention: il nous faut l'adresse de la variable pour modifier sa tête si besoin !)
 ;         rsi = clé (64-bit)
 ;         rdx = valeur (64-bit)
-; ==============================================================================
 set_in_dict:
     push rbp
     mov rbp, rsp
@@ -42,7 +34,7 @@ set_in_dict:
     jmp .fin_set
 
 .cle_non_trouvee:
-    ; 2. Allocation via malloc (24 octets)
+    ; 2. Allocation via malloc
     mov rdi, 24
     
     mov r15, rsp
@@ -67,12 +59,9 @@ set_in_dict:
     pop rbp
     ret
 
-; ==============================================================================
-; get_from_dict
 ; Entrée: rdi = adresse du dictionnaire (le pointeur lui-même)
 ;         rsi = clé recherchée
-; Sortie: rax = valeur trouvée (ou 0 si non trouvée)
-; ==============================================================================
+; Sortie: rax = valeur trouvée (clé absente => segfault volontaire)
 get_from_dict:
     mov rax, rdi            ; rax = nœud actuel
 .boucle:
@@ -86,14 +75,11 @@ get_from_dict:
     mov rax, [rax + 16]     ; rax = valeur
     ret
 .non_trouve:
-    xor rax, rax            ; Retourne 0 par défaut
-    ret
+    xor rax, rax
+    mov rax, [rax]          ; clé absente : déréférencement de NULL -> segfault
 
-; ==============================================================================
-; delete_from_dict
 ; Entrée: rdi = adresse du pointeur du dict (pour pouvoir modifier la tête)
 ;         rsi = clé à supprimer
-; ==============================================================================
 delete_from_dict:
     mov rcx, rdi            ; rcx = adresse du pointeur "précédent" (commence à l'adresse de la tête)
     mov rax, [rdi]          ; rax = nœud actuel
@@ -114,11 +100,8 @@ delete_from_dict:
 .fin:
     ret
 
-; ==============================================================================
-; dict_get_size
 ; Entrée: rdi = dictionnaire
 ; Sortie: rax = nombre d'éléments
-; ==============================================================================
 dict_get_size:
     xor rax, rax            ; compteur = 0
 .boucle:
@@ -130,12 +113,9 @@ dict_get_size:
 .fin:
     ret
 
-; ==============================================================================
-; dict_get_key_by_index
 ; Entrée: rdi = dictionnaire
 ;         rsi = index recherché (0-based)
 ; Sortie: rax = clé trouvée (ou 0 si index hors limites)
-; ==============================================================================
 dict_get_key_by_index:
     xor rcx, rcx            ; index_courant = 0
 .boucle:

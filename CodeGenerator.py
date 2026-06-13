@@ -86,7 +86,7 @@ class CodeGenerator:
         label = self._get_const_label(tree.data, tree.children[0].value)
         return f"mov rax, {label}\n"
 
-    def full_type(self, tree):
+    def nested_type(self, tree):
         raise NotImplementedError("full_type non implémenté")
 
     def binaire(self, tree):
@@ -111,7 +111,9 @@ class CodeGenerator:
                 "+": "add",
                 "-": "sub",
                 "*": "imul",
+                "&&": "and",
                 "&": "and",
+                "||": "or",
                 "|": "or",
                 "^": "xor",
             }
@@ -455,7 +457,7 @@ class CodeGenerator:
         res_asm = [self.visit(tree.children[1])]
 
         res_asm.append(self._push_type(key_type))
-        res_asm.append(f"mov rdi, [rbp - {dict_offset}]")
+        res_asm.append(f"lea rdi, [rbp - {dict_offset}]")
         res_asm.append(self._pop_type(key_type, "rsi"))
         res_asm.append("call delete_from_dict")
 

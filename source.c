@@ -5,15 +5,10 @@ main() {
     int n = 0;
     dict<int,int> mon_dict = {};
     
-    mon_dict[40] = 400 + 3 / 20 - 8 + 2 * 2;
+    mon_dict[40] = 400 + 40 / 20 - 8 + 2 * 2 + 7 % 2;
     mon_dict[20] = !222 & 1 | 2;
-
-    print(mon_dict[20]);
-    print(mon_dict[30]);
-    print(mon_dict[40]);
-
+    print(1+2+3*0 == 3 && !mon_dict[20] != 42);
     del mon_dict[20];
-    print(mon_dict[20]);
 
     dict<int,dict<int,int>> dico2 = {2: {10:100}};
 
@@ -30,4 +25,8 @@ main() {
         v = v + valeur_courante;
         print(v);
     }
+
+    print(mon_dict[20]);
+    print(mon_dict[30]);
+    print(mon_dict[40]);
 }
