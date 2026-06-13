@@ -4,8 +4,6 @@ main() {
     int v = 0;
     int n = 0;
     dict<int,int> mon_dict = {};
-
-    mon_dict = {};
     
     mon_dict[40] = 400 + 3 / 20 - 8 + 2 * 2;
     mon_dict[20] = !222 & 1 | 2;
@@ -23,10 +21,10 @@ main() {
     //print(dico2[1][20]);
     
     
-    // foreach(cle_courante in mon_dict) {
-    //     valeur_courante = mon_dict[cle_courante];
-    //     print(valeur_courante);
-    //     v = v + valeur_courante;
-    //     print(v);
-    // }
+    foreach(cle_courante in mon_dict) {
+        int valeur_courante = mon_dict[cle_courante];
+        print(valeur_courante);
+        v = v + valeur_courante;
+        print(v);
+    }
 }

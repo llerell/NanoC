@@ -7,7 +7,7 @@ class CodeGenerator:
     def __init__(
         self,
         node_types: dict[Tree, Type],
-        var_offsets: dict[Tree, int],
+        var_offsets: dict[Tree, int|dict[str, int]],
         stack_size: int,
     ):
         self.compteur = iter(range(1_000_000))
@@ -389,6 +389,61 @@ class CodeGenerator:
                     {cmd}
                     fin_{cpt}:
                     """
+    
+    def foreach(self, tree):
+        # 1. Récupération des adresses et types calculés par le TypeChecker
+        offsets = self.var_offsets[tree]
+        assert isinstance(offsets, dict)
+        key_offset = offsets["key_offset"]
+        index_offset = offsets["index_offset"]
+        dict_offset = offsets["dict_offset"]
+        
+        dict_type = self.node_types[tree]
+        assert isinstance(dict_type, DictType)
+        key_type = dict_type.key_type
+        
+        # Étiquettes uniques pour la boucle
+        label_start = f".foreach_start_{next(self.compteur)}"
+        label_end = f".foreach_end_{next(self.compteur)}"
+        
+        asm = []
+        
+        # 2. Initialiser l'index caché à 0 en mémoire
+        asm.append(f"mov qword [rbp - {index_offset}], 0")
+        
+        asm.append(f"{label_start}:")
+        
+        # 3. Condition de sortie (index >= taille)
+        asm.append(f"mov rdi, [rbp - {dict_offset}]")
+        asm.append("call dict_get_size")              # rax = taille du dico
+        asm.append(f"mov rcx, [rbp - {index_offset}]") # rcx = index courant
+        asm.append("cmp rcx, rax")
+        asm.append(f"jge {label_end}")                # Si index >= taille, on quitte
+        
+        # 4. Récupération de la clé à l'index courant
+        asm.append(f"mov rdi, [rbp - {dict_offset}]")
+        asm.append(f"mov rsi, [rbp - {index_offset}]")
+        asm.append("call dict_get_key_by_index")      # rax = la clé
+        
+        # 5. Affectation de la clé retournée dans la variable de la boucle
+        if key_type == PrimitiveType("double"):
+            # Si c'est un double, dict_get_key a copié les bits dans rax.
+            # On les bascule dans xmm0, puis on les sauvegarde en mémoire.
+            asm.append("movq xmm0, rax")
+            asm.append(f"movsd [rbp - {key_offset}], xmm0")
+        else:
+            asm.append(f"mov [rbp - {key_offset}], rax")
+            
+        # 6. Exécution du bloc de commandes du foreach
+        asm.append(self.visit(tree.children[2]))
+        
+        # 7. Incrémentation de l'index et rebouclage
+        asm.append(f"inc qword [rbp - {index_offset}]")
+        asm.append(f"jmp {label_start}")
+        
+        asm.append(f"{label_end}:")
+        
+        return "\n".join(asm) + "\n"
 
     def parameters(self, tree):
         res = []

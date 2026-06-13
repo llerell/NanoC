@@ -318,6 +318,40 @@ class TypeChecker:
             raise TypeError("La condition n'est pas un booléen")
         self.visit(tree.children[1])
 
+    def foreach(self, tree):
+        dict_name = tree.children[1].value
+        type_dict, dict_offset = self.current_scope.lookup(dict_name)
+
+        if not isinstance(type_dict, DictType):
+            raise TypeError(f"La variable doit être un dictionnaire (reçu {type_dict})")
+
+        # 2. Création d'un NOUVEAU scope pour isoler les variables de la boucle
+        self.current_scope = Scope(self.current_scope)
+
+        # 3. Allocation de la variable locale pour la clé
+        key_name = tree.children[0].value
+        key_offset = self.current_offset
+        self.current_offset += 8
+        self.current_scope.dcl(key_name, type_dict.key_type, key_offset)
+
+        # 4. Allocation d'une variable CACHÉE pour le compteur (index)
+        index_offset = self.current_offset
+        self.current_offset += 8
+        
+        # 5. On emballe toutes les métadonnées (adresses) pour le CodeGenerator
+        self.var_offsets[tree] = {
+            "key_offset": key_offset,
+            "index_offset": index_offset,
+            "dict_offset": dict_offset
+        }
+        self.node_types[tree] = type_dict
+        
+        # 6. Visite du bloc d'instructions
+        self.visit(tree.children[2])
+        
+        # 7. Sortie du scope (destruction des variables de boucle)
+        self.current_scope = self.current_scope.parent
+        
     def parameters(self, tree):
         # Pour les arguments de la fonction main
         for decl in tree.children:

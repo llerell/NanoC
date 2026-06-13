@@ -41,8 +41,7 @@ commande: IDENTIFIER "=" expression ";" -> assignation
     | "if" "(" expression ")" bloc -> block_if
     | "while" "(" expression ")" bloc -> block_while
     | IDENTIFIER "[" expression "]" "=" expression ";" -> assignation_dict
-
-//| "foreach" "(" IDENTIFIER "in" IDENTIFIER ")" "{" commande "}" -> foreach_dict
+    | "foreach" "(" IDENTIFIER "in" IDENTIFIER ")" bloc -> foreach
 
 main: "main" "(" parameters ")" bloc
 

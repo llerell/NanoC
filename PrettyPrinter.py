@@ -88,13 +88,16 @@ class PrettyPrinter:
         return f"print({self.visit(tree.children[0])});"
 
     def bloc(self, tree):
-        return "\n".join(self.visit(child) for child in tree.children)
+        return "{" + "\n".join(self.visit(child) for child in tree.children) + "}"
 
     def block_while(self, tree):
-        return f"while ({self.visit(tree.children[0])}) {{\n{self.visit(tree.children[1])}\n}}"
+        return f"while ({self.visit(tree.children[0])})\n{self.visit(tree.children[1])}\n"
 
     def block_if(self, tree):
-        return f"if ({self.visit(tree.children[0])}) {{\n{self.visit(tree.children[1])}\n}}"
+        return f"if ({self.visit(tree.children[0])})\n{self.visit(tree.children[1])}\n"
+
+    def foreach(self, tree):
+        return f"foreach({self.visit(tree.children[0])} in {self.visit(tree.children[1])})\n{self.visit(tree.children[2])}\n"
 
     def parameters(self, tree):
         return ", ".join((self.visit(v) for v in tree.children))
