@@ -103,8 +103,8 @@ class TypeChecker:
         self.node_types[tree] = TYPE_STR
         return TYPE_STR
 
-    def full_type(self, tree):
-        """Transforme le nœud de grammaire 'full_type' en objet Type."""
+    def nested_type(self, tree):
+        """Transforme le nœud de grammaire 'nested_type' en objet Type."""
 
         if len(tree.children) == 1:
             return PrimitiveType(tree.children[0].value)

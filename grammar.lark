@@ -2,7 +2,12 @@ IDENTIFIER: /[a-zA-Z_][a-zA-Z_0-9]*/
 
 STRING: /"[^"]*"/
 
-OPBIN: /<=|>=|==|!=|[+\-*\/<>%&|^]/
+OPBIN: /[&|^]/
+
+OPLOG: /\&\&|\|\|/
+OPCMP: /<=|>=|==|!=|[<>]/
+OPADD: /[+\-]/
+OPMUL: /[*\/%]/
 
 PRIMITIVE_TYPE: "int"
     | "double"
@@ -10,26 +15,44 @@ PRIMITIVE_TYPE: "int"
 
 COMPOSITE_TYPE: "dict"
 
-full_type: PRIMITIVE_TYPE
-    | COMPOSITE_TYPE "<" PRIMITIVE_TYPE "," full_type ">"
+nested_type: PRIMITIVE_TYPE
+    | COMPOSITE_TYPE "<" PRIMITIVE_TYPE "," nested_type ">"
 
-decl: full_type IDENTIFIER
+decl: nested_type IDENTIFIER
 
 bloc: "{" commande* "}"
 
 parameters: ((decl ",")* decl)?
 
-expression: IDENTIFIER -> variable
+?expression: log_expr
+
+?log_expr: log_expr OPLOG bit_expr -> binaire
+    | bit_expr
+
+?bit_expr: bit_expr OPBIN cmp_expr -> binaire
+    | cmp_expr
+
+?cmp_expr: cmp_expr OPCMP add_expr -> binaire
+    | add_expr
+
+?add_expr: add_expr OPADD mul_expr -> binaire
+    | mul_expr
+
+?mul_expr: mul_expr OPMUL unary -> binaire
+    | unary
+
+?unary: "!" unary -> non_logique
+    | atom
+
+?atom: IDENTIFIER -> variable
     | SIGNED_INT -> entier
     | SIGNED_FLOAT -> double
     | STRING -> chaine
     | "(" expression ")" -> parenthese
-    | expression OPBIN expression -> binaire
     | IDENTIFIER "[" expression "]" -> dict_access
     | "len" "(" expression ")" -> length
     | "charAt" "(" expression "," expression ")" -> charat
     | "atoi" "(" expression ")" -> atoi
-    | "!" expression -> non_logique
     | PRIMITIVE_TYPE "(" expression ")" -> conversion
     | "{" ((expression ":" expression ",")* expression ":" expression)? "}" -> dict_literal
 
