@@ -103,6 +103,14 @@ class TypeChecker:
         self.node_types[tree] = TYPE_STR
         return TYPE_STR
 
+    def type_node(self, node):
+        """Transforme un nœud de type ('nested_type', ou PRIMITIVE_TYPE
+        auto-inliné par Lark) en objet Type."""
+
+        if not isinstance(node, Tree):
+            return PrimitiveType(node.value)
+        return self.visit(node)
+
     def nested_type(self, tree):
         """Transforme le nœud de grammaire 'nested_type' en objet Type."""
 
@@ -110,7 +118,7 @@ class TypeChecker:
             return PrimitiveType(tree.children[0].value)
 
         key_type = PrimitiveType(tree.children[1].value)
-        value_type = self.visit(tree.children[2])
+        value_type = self.type_node(tree.children[2])
         return DictType(key_type, value_type)
 
     def binaire(self, tree):
@@ -243,7 +251,7 @@ class TypeChecker:
     def decl_assignation(self, tree):
         """Exemple pour : int x = 5;"""
         decl_node = tree.children[0]
-        type_var = self.visit(decl_node.children[0])
+        type_var = self.type_node(decl_node.children[0])
         nom_var = decl_node.children[1].value
 
         offset = self.current_offset
@@ -290,6 +298,10 @@ class TypeChecker:
 
         if lhs_type.key_type != key_type:
             raise TypeError(f"Type de clé invalide. Attendu: {lhs_type.key_type}")
+
+        if rhs_type is None:
+            rhs_type = lhs_type.value_type
+            self.node_types[tree.children[2]] = rhs_type
 
         if lhs_type.value_type != rhs_type:
             raise TypeError(f"Type de valeur invalide. Attendu: {lhs_type.value_type}")
