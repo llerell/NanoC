@@ -1,32 +1,59 @@
 main() {
 
-    // oui ça fonctionne
-    int v = 0;
-    int n = 0;
-    dict<int,int> mon_dict = {};
-    
-    mon_dict[40] = 400 + 40 / 20 - 8 + 2 * 2 + 7 % 2;
-    mon_dict[20] = !222 & 1 | 2;
-    print(1+2+3*0 == 3 && !mon_dict[20] != 42);
-    del mon_dict[20];
+    print(1 == 1 && 2 | 4 == 4);
+    print(2 + 3 * 4 - 10 / 2 % 3);
+    print(!(0 == 1));
 
-    dict<int,dict<int,int>> dico2 = {2: {10:100}};
+    str greeting = "Hello, " + "World!";
+    print(greeting);
+    print(len(greeting));
+    print(charAt(greeting, 7));
+    print(atoi("-123") + atoi("42"));
 
-        
-    dico2[0] = {10:100};
-    dico2[1] = mon_dict;
 
-    //print(dico2[1][20]);
-    
-    
-    foreach(cle_courante in mon_dict) {
-        int valeur_courante = mon_dict[cle_courante];
-        print(valeur_courante);
-        v = v + valeur_courante;
-        print(v);
+    dict<int,dict<int,dict<int,int>>> cube = {1: {2: {3: 12345}}};
+    print(cube[1][2][3]);
+    cube[1][2][3] = 999;
+    print(cube[1][2][3]);
+
+
+    dict<int,int> original = {1: 100};
+    dict<int,int> alias = original;
+    alias[1] = 777;
+    print(original[1]);
+
+
+    dict<str,int> wordcount = {};
+    wordcount["foo" + "bar"] = 7;
+    print(wordcount["foobar"]);
+
+
+    dict<double,str> pies = {};
+    pies[3.14] = "tau/2";
+    print(pies[3.14]);
+
+
+    int i = 0;
+    int sum = 0;
+    while (i < 5) {
+        sum = sum + i;
+        i = i + 1;
     }
+    print(sum);
 
-    print(mon_dict[20]);
-    print(mon_dict[30]);
-    print(mon_dict[40]);
+
+    dict<int,int> squares = {};
+    squares[0] = 0;
+    squares[1] = 1;
+    squares[2] = 4;
+    squares[3] = 9;
+    int total = 0;
+    foreach(k in squares) {
+        total = total + squares[k];
+    }
+    print(total);
+
+
+    del squares[2];
+    print(squares[2]);
 }
