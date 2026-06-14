@@ -1,6 +1,6 @@
 default rel
 
-extern printf, atoi, atof, strlen, malloc, strcpy, strcat 
+extern printf, atoi, atof, strlen, malloc, strcpy, strcat, strcmp
 section .data
 argv: dq 0
 format_entier: db "%lld", 10, 0

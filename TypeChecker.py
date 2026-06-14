@@ -150,24 +150,33 @@ class TypeChecker:
         self.var_offsets[tree] = offset
         return type_var
 
-    def dict_access(self, tree):
+    def root_dict(self, tree):
         nom_var = tree.children[0].value
-        type_expr = self.visit(tree.children[1])
-
         type_var, offset = self.current_scope.lookup(nom_var)
 
         if not isinstance(type_var, DictType):
             raise TypeError(f"La variable '{nom_var}' n'est pas un dictionnaire.")
 
-        if type_var.key_type != type_expr:
-            raise TypeError(
-                f"La clé doit être de type {type_var.key_type.name}, pas {type_expr.name}"
-            )
-
-        self.node_types[tree] = type_var.value_type
+        self.node_types[tree] = type_var
         self.var_offsets[tree] = offset
 
-        return type_var.value_type
+        return type_var
+
+    def dict_access(self, tree):
+        type_dict = self.visit(tree.children[0])
+        type_cle = self.visit(tree.children[1])
+
+        if not isinstance(type_dict, DictType):
+            raise TypeError(f"Impossible d'indexer une valeur de type {type_dict}.")
+
+        if type_dict.key_type != type_cle:
+            raise TypeError(
+                f"La clé doit être de type {type_dict.key_type}, pas {type_cle}"
+            )
+
+        self.node_types[tree] = type_dict.value_type
+
+        return type_dict.value_type
 
     def dict_literal(self, tree):
 
@@ -272,23 +281,19 @@ class TypeChecker:
             raise TypeError(f"Impossible d'assigner {rhs_type} à {lhs_type}")
 
     def assignation_dict(self, tree):
-        nom_var = tree.children[0].value
-        lhs_type, offset = self.current_scope.lookup(nom_var)
+        lhs_type = self.visit(tree.children[0])
         key_type = self.visit(tree.children[1])
         rhs_type = self.visit(tree.children[2])
 
         if not isinstance(lhs_type, DictType):
-            raise TypeError(f"'{nom_var}' n'est pas un dictionnaire.")
+            raise TypeError(f"Impossible d'indexer une valeur de type {lhs_type}.")
 
         if lhs_type.key_type != key_type:
-            raise TypeError(f"Type de clé invalide. Attendu: {lhs_type.key_type.name}")
+            raise TypeError(f"Type de clé invalide. Attendu: {lhs_type.key_type}")
 
         if lhs_type.value_type != rhs_type:
-            raise TypeError(
-                f"Type de valeur invalide. Attendu: {lhs_type.value_type.name if isinstance(lhs_type.value_type, PrimitiveType) else 'dictionnaire'}"
-            )
+            raise TypeError(f"Type de valeur invalide. Attendu: {lhs_type.value_type}")
 
-        self.var_offsets[tree] = offset
         self.node_types[tree] = lhs_type
 
     def nop(self, tree):

@@ -54,6 +54,69 @@ class CodeGenerator:
             return f"movsd {dest}, {src}"
         return f"mov {dest}, {src}"
 
+    def _dict_func(self, key_type, name):
+        """
+        Renvoie le nom de la fonction de la bibliothèque de dictionnaires à
+        utiliser pour une clé de type `key_type` (variante _str si la clé
+        est une chaîne, pour une comparaison par contenu via strcmp).
+        """
+        if key_type == PrimitiveType("str"):
+            return f"{name}_str"
+        return name
+
+    def _dict_value_asm(self, tree):
+        """
+        Génère l'assembleur plaçant dans rax le pointeur de tête (valeur)
+        du dictionnaire désigné par `tree` (root_dict ou dict_access imbriqué).
+        """
+        if tree.data == "root_dict":
+            offset = self.var_offsets[tree]
+            return f"mov rax, [rbp - {offset}]\n"
+
+        key_node = tree.children[1]
+        key_asm = self.visit(key_node)
+        key_type = self.node_types[key_node]
+        base_asm = self._dict_value_asm(tree.children[0])
+        base_type = self.node_types[tree.children[0]]
+        assert isinstance(base_type, DictType)
+        func = self._dict_func(base_type.key_type, "get_from_dict")
+
+        value_conversion = ""
+        if base_type.value_type == PrimitiveType("double"):
+            value_conversion = "movq xmm0, rax\n"
+
+        return f"""{key_asm}
+                    {self._push_type(key_type)}
+                    {base_asm}
+                    mov rdi, rax
+                    {self._pop_type(key_type, "rsi")}
+                    call {func}
+                    {value_conversion}"""
+
+    def _dict_addr_asm(self, tree):
+        """
+        Génère l'assembleur plaçant dans rax l'adresse de l'emplacement
+        contenant le pointeur de tête du dictionnaire désigné par `tree`.
+        """
+        if tree.data == "root_dict":
+            offset = self.var_offsets[tree]
+            return f"lea rax, [rbp - {offset}]\n"
+
+        key_node = tree.children[1]
+        key_asm = self.visit(key_node)
+        key_type = self.node_types[key_node]
+        base_asm = self._dict_value_asm(tree.children[0])
+        base_type = self.node_types[tree.children[0]]
+        assert isinstance(base_type, DictType)
+        func = self._dict_func(base_type.key_type, "get_addr_in_dict")
+        return f"""{key_asm}
+                    {self._push_type(key_type)}
+                    {base_asm}
+                    mov rdi, rax
+                    {self._pop_type(key_type, "rsi")}
+                    call {func}
+                """
+
     def _get_const_label(self, type_lit, valeur):
         """
         Renvoie le label de la constante ; si celle-ci n'est pas encore définie,
@@ -87,7 +150,12 @@ class CodeGenerator:
         return f"mov rax, {label}\n"
 
     def nested_type(self, tree):
+        """
+        Pour l'instant, seuls les dictionnaires seront implémentés
+        """
+        label = self._get_const_label(tree.data, tree.children[0].value)
         raise NotImplementedError("full_type non implémenté")
+        return f"mov rax, {label}\n" 
 
     def binaire(self, tree):
         type_g = self.node_types[tree.children[0]]
@@ -175,15 +243,7 @@ class CodeGenerator:
         return f"mov rax, [rbp - {offset}]\n"
 
     def dict_access(self, tree):
-        key_asm = self.visit(tree.children[1])
-
-        offset = self.var_offsets[tree]
-
-        return f"""{key_asm}
-                    mov rsi, rax
-                    mov rdi, [rbp - {offset}]
-                    call get_from_dict
-                """
+        return self._dict_value_asm(tree)
 
     def dict_literal(self, tree):
         dict_type = self.node_types[tree]
@@ -214,7 +274,7 @@ class CodeGenerator:
             # 4. Insertion dans le dictionnaire
             # L'adresse de la tête (le NULL initial ou la tête mise à jour) est pointée par rsp
             asm.append("lea rdi, [rsp]")
-            asm.append("call set_in_dict")
+            asm.append(f"call {self._dict_func(key_type, 'set_in_dict')}")
 
         # À la fin, on dépile l'adresse de la tête du dictionnaire dans rax
         # (C'est ce qui sera affecté à la variable lors du `decl_assignation`)
@@ -272,8 +332,58 @@ class CodeGenerator:
         )
 
     def _concat(self, asm_g, asm_d):
-        # TODO
-        raise NotImplementedError("concaténation de chaînes non implémentée")
+        """Alloue une nouvelle chaîne contenant la concaténation de asm_g et asm_d."""
+        return f"""push rbx
+                    push r12
+                    push r13
+                    push r14
+
+                    {asm_g}
+                    mov r12, rax
+                    {asm_d}
+                    mov r13, rax
+
+                    mov rdi, r12
+                    mov r14, rsp
+                    and rsp, -16
+                    call strlen
+                    mov rsp, r14
+                    mov rbx, rax
+
+                    mov rdi, r13
+                    mov r14, rsp
+                    and rsp, -16
+                    call strlen
+                    mov rsp, r14
+                    add rax, rbx
+                    inc rax
+                    mov rdi, rax
+                    mov r14, rsp
+                    and rsp, -16
+                    call malloc
+                    mov rsp, r14
+                    mov rbx, rax
+
+                    mov rdi, rbx
+                    mov rsi, r12
+                    mov r14, rsp
+                    and rsp, -16
+                    call strcpy
+                    mov rsp, r14
+
+                    mov rdi, rbx
+                    mov rsi, r13
+                    mov r14, rsp
+                    and rsp, -16
+                    call strcat
+                    mov rsp, r14
+
+                    mov rax, rbx
+                    pop r14
+                    pop r13
+                    pop r12
+                    pop rbx
+                """
 
     # COMMANDES
 
@@ -298,8 +408,7 @@ class CodeGenerator:
         return f"{asm_expr}mov [rbp - {offset}], rax\n"
 
     def assignation_dict(self, tree):
-        offset = self.var_offsets[tree]
-
+        base_node = tree.children[0]
         key_node = tree.children[1]
         val_node = tree.children[2]
 
@@ -318,9 +427,8 @@ class CodeGenerator:
         asm.append(self._push_type(key_type))
 
         # 3. Préparer les registres pour l'appel à set_in_dict
-        asm.append(
-            f"lea rdi, [rbp - {offset}]"
-        )  # rdi = adresse de la variable dictionnaire
+        asm.append(self._dict_addr_asm(base_node))  # rax = &tête du dictionnaire ciblé
+        asm.append("mov rdi, rax")
         asm.append(
             self._pop_type(key_type, "rsi")
         )  # rsi = la clé qu'on vient de dépiler
@@ -329,7 +437,7 @@ class CodeGenerator:
         )  # rdx = la valeur qu'on dépile ensuite
 
         # 4. Appel de la fonction de la bibliothèque standard
-        asm.append("call set_in_dict\n")
+        asm.append(f"call {self._dict_func(key_type, 'set_in_dict')}\n")
 
         return "\n".join(asm)
 
@@ -459,7 +567,7 @@ class CodeGenerator:
         res_asm.append(self._push_type(key_type))
         res_asm.append(f"lea rdi, [rbp - {dict_offset}]")
         res_asm.append(self._pop_type(key_type, "rsi"))
-        res_asm.append("call delete_from_dict")
+        res_asm.append(f"call {self._dict_func(key_type, 'delete_from_dict')}")
 
         return "\n".join(res_asm) + "\n"
 

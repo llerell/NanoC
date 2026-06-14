@@ -59,6 +59,68 @@ set_in_dict:
     pop rbp
     ret
 
+; Variante de set_in_dict pour les clés de type str (comparaison par contenu via strcmp)
+; Entrée: rdi = adresse du pointeur du dict
+;         rsi = clé (pointeur vers chaîne)
+;         rdx = valeur (64-bit)
+set_in_dict_str:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+
+    mov r12, rdi            ; r12 = adresse de la variable dict
+    mov r13, rsi            ; r13 = clé recherchée (pointeur)
+    mov r14, rdx            ; r14 = valeur à insérer
+
+    mov rbx, [r12]          ; rbx = premier nœud de la liste
+.boucle_recherche:
+    cmp rbx, 0
+    je .cle_non_trouvee
+
+    mov rdi, [rbx + 8]      ; rdi = clé du nœud courant
+    mov rsi, r13
+    mov r15, rsp
+    and rsp, -16
+    call strcmp
+    mov rsp, r15
+    cmp rax, 0
+    je .cle_trouvee
+
+    mov rbx, [rbx]
+    jmp .boucle_recherche
+
+.cle_trouvee:
+    mov [rbx + 16], r14
+    jmp .fin_set
+
+.cle_non_trouvee:
+    mov rdi, 24
+
+    mov r15, rsp
+    and rsp, -16
+    call malloc
+    mov rsp, r15
+
+    mov rbx, rax
+
+    mov rax, [r12]
+    mov [rbx], rax
+    mov [rbx + 8], r13
+    mov [rbx + 16], r14
+
+    mov [r12], rbx
+
+.fin_set:
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
+
 ; Entrée: rdi = adresse du dictionnaire (le pointeur lui-même)
 ;         rsi = clé recherchée
 ; Sortie: rax = valeur trouvée (clé absente => segfault volontaire)
@@ -75,6 +137,97 @@ get_from_dict:
     mov rax, [rax + 16]     ; rax = valeur
     ret
 .non_trouve:
+    xor rax, rax
+    mov rax, [rax]          ; clé absente : déréférencement de NULL -> segfault
+
+; Variante de get_from_dict pour les clés de type str (comparaison par contenu via strcmp)
+; Entrée: rdi = dictionnaire (tête de liste)
+;         rsi = clé recherchée (pointeur vers chaîne)
+; Sortie: rax = valeur trouvée (clé absente => segfault volontaire)
+get_from_dict_str:
+    push r12
+    push r13
+    push r14
+    mov r12, rdi            ; r12 = nœud courant
+    mov r13, rsi            ; r13 = clé recherchée
+.boucle:
+    cmp r12, 0
+    je .non_trouve
+    mov rdi, [r12 + 8]
+    mov rsi, r13
+    mov r14, rsp
+    and rsp, -16
+    call strcmp
+    mov rsp, r14
+    cmp rax, 0
+    je .trouve
+    mov r12, [r12]
+    jmp .boucle
+.trouve:
+    mov rax, [r12 + 16]
+    pop r14
+    pop r13
+    pop r12
+    ret
+.non_trouve:
+    pop r14
+    pop r13
+    pop r12
+    xor rax, rax
+    mov rax, [rax]          ; clé absente : déréférencement de NULL -> segfault
+
+; Entrée: rdi = dictionnaire (valeur, tête de liste)
+;         rsi = clé recherchée
+; Sortie: rax = adresse du champ valeur du nœud (clé absente => segfault volontaire)
+get_addr_in_dict:
+    mov rax, rdi            ; rax = nœud actuel
+.boucle:
+    cmp rax, 0
+    je .non_trouve
+    cmp [rax + 8], rsi
+    je .trouve
+    mov rax, [rax]          ; rax = nœud suivant
+    jmp .boucle
+.trouve:
+    add rax, 16             ; rax = adresse du champ valeur
+    ret
+.non_trouve:
+    xor rax, rax
+    mov rax, [rax]          ; clé absente : déréférencement de NULL -> segfault
+
+; Variante de get_addr_in_dict pour les clés de type str (comparaison par contenu via strcmp)
+; Entrée: rdi = dictionnaire (tête de liste)
+;         rsi = clé recherchée (pointeur vers chaîne)
+; Sortie: rax = adresse du champ valeur du nœud (clé absente => segfault volontaire)
+get_addr_in_dict_str:
+    push r12
+    push r13
+    push r14
+    mov r12, rdi            ; r12 = nœud courant
+    mov r13, rsi            ; r13 = clé recherchée
+.boucle:
+    cmp r12, 0
+    je .non_trouve
+    mov rdi, [r12 + 8]
+    mov rsi, r13
+    mov r14, rsp
+    and rsp, -16
+    call strcmp
+    mov rsp, r14
+    cmp rax, 0
+    je .trouve
+    mov r12, [r12]
+    jmp .boucle
+.trouve:
+    lea rax, [r12 + 16]
+    pop r14
+    pop r13
+    pop r12
+    ret
+.non_trouve:
+    pop r14
+    pop r13
+    pop r12
     xor rax, rax
     mov rax, [rax]          ; clé absente : déréférencement de NULL -> segfault
 
@@ -98,6 +251,45 @@ delete_from_dict:
     mov rdx, [rax]          ; rdx = nœud->suivant
     mov [rcx], rdx          ; precedent->suivant = nœud->suivant (on court-circuite le nœud)
 .fin:
+    ret
+
+; Variante de delete_from_dict pour les clés de type str (comparaison par contenu via strcmp)
+; Entrée: rdi = adresse du pointeur du dict (pour pouvoir modifier la tête)
+;         rsi = clé à supprimer (pointeur vers chaîne)
+delete_from_dict_str:
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov r12, rdi            ; r12 = adresse du pointeur "précédent"
+    mov r13, [rdi]          ; r13 = nœud actuel
+    mov r14, rsi            ; r14 = clé recherchée
+.boucle:
+    cmp r13, 0
+    je .fin                 ; Clé non trouvée, rien à faire
+
+    mov rdi, [r13 + 8]
+    mov rsi, r14
+    mov r15, rsp
+    and rsp, -16
+    call strcmp
+    mov rsp, r15
+    cmp rax, 0
+    je .supprimer
+
+    mov r12, r13            ; Le nœud actuel devient le "précédent"
+    mov r13, [r13]          ; r13 = nœud suivant
+    jmp .boucle
+
+.supprimer:
+    mov rdx, [r13]          ; rdx = nœud->suivant
+    mov [r12], rdx          ; precedent->suivant = nœud->suivant (on court-circuite le nœud)
+.fin:
+    pop r15
+    pop r14
+    pop r13
+    pop r12
     ret
 
 ; Entrée: rdi = dictionnaire
