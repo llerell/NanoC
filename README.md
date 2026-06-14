@@ -1,23 +1,33 @@
-install dependencies:
+# Compilateur nanoC par Lisa Lautier, Owen Le Ray et Vincent GUICHARD
+
+## Utilisation
+
+Pour installer les dépendances python, exécutez :
+```shell
 pip install -r requirements.txt
+```
 
-To run the compiler :
+Pour lancer le compilateur, exécutez :
+```shell
+./script.sh
+```
+Cela va provoquer :
+- l'exécution de main.py, qui va lui-même orchestrer :
+    - La construction de la grammaire à partir du fichier `grammar.lark`.
+    - Le chargement du fichier source à compiler, par défaut `source.c`
+    - L'application de la grammaire au fichier source pour construire l'arbre syntaxique.
+    - La vérification des types par TypeChecker, ainsi que la construction d'un index emplacements des variables sur la pile.
+    - La création du code formaté par PrettyPrinter. Actuellement, on n'utilise pas le résultat, mais il est possible de l'imprimer.
+    - La génération du code assembleur, que l'on sauvegarde dans le fichier `resultat.asm`
+- L'exécution de `nasm` pour compiler le code assembleur en fichier exécutable.
+- L'exécution du fichier exécutable.
 
-run chmod +x script.sh once to make the bash script executable
+## Répartition des tâches
 
-run ./script.sh to compile source.c. 
+- Lisa s'est occupé de l'implémentation des chaînes de caractères et des fonctions associées.
+- Owen a ajouté les dictionnaires.
+- Vincent a pris en charge les flottants l'organisation de l'architecture du code.
 
-
-1. ce qui a été fait et par qui
-Lisa : chaîne de caractère et caractères
-
-2. Comment utiliser le compilateur
-
-3. Hypothèses sur le langage
-
-4. Principes mis en oeuvre 
-
-5. Note de groupe : parfait pour l'instant
 ## Dictionnaires
 
 Un dictionnaire se déclare avec `dict<TypeClé, TypeValeur>`. `TypeClé` doit
