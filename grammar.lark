@@ -15,7 +15,7 @@ PRIMITIVE_TYPE: "int"
 
 COMPOSITE_TYPE: "dict"
 
-nested_type: PRIMITIVE_TYPE
+?nested_type: PRIMITIVE_TYPE
     | COMPOSITE_TYPE "<" PRIMITIVE_TYPE "," nested_type ">"
 
 decl: nested_type IDENTIFIER
