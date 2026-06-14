@@ -1,13 +1,54 @@
-install dependencies:
+# Compilateur nanoC par Lisa Lautier, Owen Le Ray et Vincent Guichard
+
+## Utilisation
+
+Pour installer les dépendances python, exécutez :
+```shell
 pip install -r requirements.txt
+```
 
-To run the compiler :
+Pour lancer le compilateur, exécutez :
+```shell
+./script.sh
+```
+Cela va provoquer :
+- l'exécution de main.py, qui va lui-même orchestrer :
+    - La construction de la grammaire à partir du fichier `grammar.lark`.
+    - Le chargement du fichier source à compiler, par défaut `source.c`
+    - L'application de la grammaire au fichier source pour construire l'arbre syntaxique.
+    - La vérification des types par TypeChecker, ainsi que la construction d'un index emplacements des variables sur la pile.
+    - La création du code formaté par PrettyPrinter. Actuellement, on n'utilise pas le résultat, mais il est possible de l'imprimer.
+    - La génération du code assembleur, que l'on sauvegarde dans le fichier `resultat.asm`
+- L'exécution de `nasm` pour compiler le code assembleur en fichier exécutable.
+- L'exécution du fichier exécutable.
 
-run chmod +x script.sh once to make the bash script executable
+## Répartition des tâches
 
-run ./script.sh to compile source.c. 
+- Lisa s'est occupé de l'implémentation des chaînes de caractères et des fonctions associées.
+- Owen a ajouté les dictionnaires.
+- Vincent a pris en charge les flottants l'organisation de l'architecture du code.
 
+## Chaînes de caractères
 
+### représentation mémoire
+Une chaîne str est gérée comme un pointeur (adresse de 64 bits en mémoire) vers une suite de caractère stockés octet par octet dans la RAM, se terminant par le caractère nul de fin de chaîne \0
+Les chaînes de caractères passées en ligne de commande via argv sont directement récupérées comme des adresses mémoires (pointeurs) sans nécessiter de conversion préalable (contrairement aux entiers ou doubles).
+
+### Implémentation
+ 
+Lorsqu'une chaîne de caractères (ex: "abc") est rencontrée dans l'AST (case "chaine"), un label unique lui est assigné à l'aide d'un compteur global.
+Ce label et sa valeur associée sont mémorisés dans un dictionnaire de constantes pour être injectés dans la section globale .data de l'assembleur final.
+Le code généré charge l'adresse associée à ce label dans le registre rax (mov rax, lit_X).
+
+### Fonctions
+- len(expression) : Le code évalue l'expression de la chaîne pour mettre son adresse dans rax, déplace cette adresse dans rdi, puis appelle la fonction standard strlen de la bibliothèque C. Le résultat (la taille) est retourné dans rax.
+- atoi(expression) : Évalue l'adresse de la chaîne, la transmet à rdi, et appelle la fonction atoi pour retourner l'équivalent entier dans rax
+- charAt(str, idx) : Évalue l'index numérique et le pousse sur la pile. Évalue ensuite l'adresse de la chaîne, récupère l'index de la pile dans rbx, puis extrait un seul octet depuis l'adresse mémoire calculée via movzx rax, byte [rax + rbx]
+
+- Concaténation : 
+    - Mesure : Les adresses des deux chaînes sont sauvegardées sur la pile, et strlen est appelée sur chacune d'elles pour calculer leurs tailles respectives.
+    - Allocation : Les deux tailles sont additionnées, augmentées de 1 (pour le caractère de fin \0), et transmises à malloc pour allouer l'espace nécessaire dans le tas (heap).
+    - Copie et Concaténation : La première chaîne est copiée dans le nouvel espace via strcpy, puis la seconde chaîne y est jointe à la suite à l'aide de strcat. L'adresse du bloc nouvellement alloué est finalement retournée dans rax.
 
 ## Dictionnaires
 
@@ -84,3 +125,27 @@ e[1] = 2.0;        // erreur de compilation : valeur de type double, attendu int
 
 Pour une clé ou une valeur `double`, il faut écrire un littéral avec un point
 décimal (`d[1.0] = 2.0;`). 
+
+## flottants
+
+Les flottants sont caractérisés par leur point. Ainsi, `1.0` est un flottant mais `1` n'en est pas un.
+
+### en mémoire
+
+Les flottants sont en réalité des `double`, encodés sur 64 bits. Lorsqu'ils apparaissent littéralement dans le code, on procède comme pour les chaines de caractères : on leur attribue un label, on les place dans la section data et l'assembleur utilise leur label.
+
+### opérations autorisées
+
+- additions et soustractions. Signe unal (par exemple `-3.0 + 4.2`)
+- multiplications et divisions. À noter : la division entre deux entiers donne la partie entière, et non un flottant.
+- Multiplication par une puissance de 10, par exemple `3.2e-4`.
+- Conversion explicite avec `int(...)`, qui renvoie l'entier le plus proche.
+
+Dans le cas d'une opération entre un flottant et un entier, l'entier est implicitement converti en flottant. Ce n'est pas le cas pour une assignation. Ainsi :
+```c
+double x = 2 + 3.0; // valide
+
+double x = 2; // provoque une erreur de compilation
+```
+
+
