@@ -1,4 +1,4 @@
-# Compilateur nanoC par Lisa Lautier, Owen Le Ray et Vincent GUICHARD
+# Compilateur nanoC par Lisa Lautier, Owen Le Ray et Vincent Guichard
 
 ## Utilisation
 
@@ -125,3 +125,27 @@ e[1] = 2.0;        // erreur de compilation : valeur de type double, attendu int
 
 Pour une clé ou une valeur `double`, il faut écrire un littéral avec un point
 décimal (`d[1.0] = 2.0;`). 
+
+## flottants
+
+Les flottants sont caractérisés par leur point. Ainsi, `1.0` est un flottant mais `1` n'en est pas un.
+
+### en mémoire
+
+Les flottants sont en réalité des `double`, encodés sur 64 bits. Lorsqu'ils apparaissent littéralement dans le code, on procède comme pour les chaines de caractères : on leur attribue un label, on les place dans la section data et l'assembleur utilise leur label.
+
+### opérations autorisées
+
+- additions et soustractions. Signe unal (par exemple `-3.0 + 4.2`)
+- multiplications et divisions. À noter : la division entre deux entiers donne la partie entière, et non un flottant.
+- Multiplication par une puissance de 10, par exemple `3.2e-4`.
+- Conversion explicite avec `int(...)`, qui renvoie l'entier le plus proche.
+
+Dans le cas d'une opération entre un flottant et un entier, l'entier est implicitement converti en flottant. Ce n'est pas le cas pour une assignation. Ainsi :
+```c
+double x = 2 + 3.0; // valide
+
+double x = 2; // provoque une erreur de compilation
+```
+
+
